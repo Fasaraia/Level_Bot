@@ -16,14 +16,20 @@ class Shop(commands.Cog):
             'blue': 'Blue',
             'purple': 'Purple',
             'black': 'Black',
-            'other_role_1': 'other_role_1',
-            'otherrole1': 'other_role_1',
-            'special1': 'other_role_1',
-            'other_role_2': 'other_role_2',
-            'otherrole2': 'other_role_2',
-            'special2': 'other_role_2',
+            'customrole1': 'Custom Role 1',
+            'custom1': 'Custom Role 1',
+            'cr1': 'Custom Role 1',
+            'customrole2': 'Custom Role 2',
+            'custom2': 'Custom Role 2',
+            'cr2': 'Custom Role 2',
+            'specialrole1': 'Special Role 1',
+            'special1': 'Special Role 1',
+            'sr1': 'Special Role 1',
+            'specialrole2': 'Special Role 2',
+            'special2': 'Special Role 2',
+            'sr2': 'Special Role 2',
         }
-        return role_map.get(role_input.lower().strip(), None)
+        return role_map.get(role_input.lower().strip().replace(' ', ''), None)
     
     def normalize_booster_name(self, booster_input):
         booster_map = {
@@ -50,15 +56,15 @@ class Shop(commands.Cog):
             'Blue': 1000,
             'Purple': 1000,
             'Black': 1000,
-            'other_role_1': 5000,
-            'other_role_2': 5000,
+            'Custom Role 1': 5000,
+            'Custom Role 2': 5000,
+            'Special Role 1': 7500,
+            'Special Role 2': 7500,
         }
         return prices.get(role_name, 0)
     
     def get_role_display_name(self, role_name):
-        if role_name.startswith('other_role_'):
-            return f"Special Role {role_name.split('_')[-1]}"
-        return role_name.capitalize()
+        return role_name
     
     def get_booster_info(self, booster_name):
         booster_data = {
@@ -69,12 +75,28 @@ class Shop(commands.Cog):
         }
         return booster_data.get(booster_name, {})
     
+    def get_db_role_key(self, role_name):
+        """Map display names to database keys"""
+        role_key_map = {
+            'Red': 'Red',
+            'Orange': 'Orange',
+            'Teal': 'Teal',
+            'Blue': 'Blue',
+            'Purple': 'Purple',
+            'Black': 'Black',
+            'Custom Role 1': 'other_role_1',
+            'Custom Role 2': 'other_role_2',
+            'Special Role 1': 'other_role_3',
+            'Special Role 2': 'other_role_4',
+        }
+        return role_key_map.get(role_name, role_name)
+    
     @commands.hybrid_command(name="shop", description="View the role shop")
     async def shop(self, ctx):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_roles = user_data.get('roles', {})
         user_items = user_data.get('items', {})
-        user_xp = user_data['currentXP']  # Changed from totalXP to currentXP
+        user_xp = user_data['currentXP']
         
         embed = discord.Embed(
             title="🛒 Shop",
@@ -85,11 +107,11 @@ class Shop(commands.Cog):
         # Color Roles
         color_roles = []
         for role_name in ['Red', 'Orange', 'Teal', 'Blue', 'Purple', 'Black']:
-            owned = user_roles.get(role_name, False)
+            db_key = self.get_db_role_key(role_name)
+            owned = user_roles.get(db_key, False)
             price = self.get_role_price(role_name)
             status = "✅ Owned" if owned else f"{price:,} XP"
             
-            # Get the Discord role to show it (without ping)
             discord_role_id = bot_config.COLOUR_ROLES.get(role_name)
             if discord_role_id:
                 discord_role = ctx.guild.get_role(discord_role_id)
@@ -108,12 +130,12 @@ class Shop(commands.Cog):
         
         # Special Roles
         special_roles = []
-        for role_name in ['other_role_1', 'other_role_2']:
-            owned = user_roles.get(role_name, False)
+        for role_name in ['Custom Role 1', 'Custom Role 2', 'Special Role 1', 'Special Role 2']:
+            db_key = self.get_db_role_key(role_name)
+            owned = user_roles.get(db_key, False)
             price = self.get_role_price(role_name)
-            display_name = self.get_role_display_name(role_name)
             status = "✅ Owned" if owned else f"{price:,} XP"
-            special_roles.append(f"**{display_name}** - {status}")
+            special_roles.append(f"**{role_name}** - {status}")
         
         embed.add_field(
             name="⭐ Special Roles",
@@ -121,7 +143,7 @@ class Shop(commands.Cog):
             inline=False
         )
         
-        # XP Boosters (large_booster excluded from shop)
+        # XP Boosters
         boosters = []
         for booster_name in ['tiny_booster', 'small_booster', 'medium_booster']:
             info = self.get_booster_info(booster_name)
@@ -137,9 +159,8 @@ class Shop(commands.Cog):
         await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False))
     
     @commands.hybrid_command(name="buy", description="Buy an item from the shop")
-    @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium, large)")
+    @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium)")
     async def buy(self, ctx, item: str):
-        # Try to normalize as role first
         role = self.normalize_role_name(item)
         booster = self.normalize_booster_name(item)
         
@@ -153,10 +174,12 @@ class Shop(commands.Cog):
     async def _buy_role(self, ctx, role):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_roles = user_data.get('roles', {})
-        user_xp = user_data['currentXP']  # Changed from totalXP to currentXP
+        user_xp = user_data['currentXP']
         
-        if user_roles.get(role, False):
-            await ctx.send(f"You already own the **{self.get_role_display_name(role)}** role!", ephemeral=True)
+        db_key = self.get_db_role_key(role)
+        
+        if user_roles.get(db_key, False):
+            await ctx.send(f"You already own the **{role}** role!", ephemeral=True)
             return
         
         price = self.get_role_price(role)
@@ -166,11 +189,11 @@ class Shop(commands.Cog):
             return
         
         firebase_manager.add_xp(ctx.author.id, str(ctx.author), -price)
-        firebase_manager.set_user_role(ctx.author.id, role, True)
+        firebase_manager.set_user_role(ctx.author.id, db_key, True)
         
         embed = discord.Embed(
             title="✅ Purchase Successful!",
-            description=f"You bought the **{self.get_role_display_name(role)}** role for **{price:,} XP**!\n\nUse `/equip {role}` to equip it.",
+            description=f"You bought the **{role}** role for **{price:,} XP**!\n\nUse `/equip {role}` to equip it.",
             color=discord.Color.green()
         )
         embed.add_field(name="Remaining XP", value=f"{user_xp - price:,}", inline=True)
@@ -178,13 +201,12 @@ class Shop(commands.Cog):
         await ctx.send(embed=embed)
     
     async def _buy_booster(self, ctx, booster):
-        # Prevent buying large_booster
         if booster == 'large_booster':
             await ctx.send(f"This booster is not available for purchase!", ephemeral=True)
             return
         
         user_data = firebase_manager.get_user_data(ctx.author.id)
-        user_xp = user_data['currentXP']  # Changed from totalXP to currentXP
+        user_xp = user_data['currentXP']
         
         info = self.get_booster_info(booster)
         price = info['price']
@@ -217,7 +239,6 @@ class Shop(commands.Cog):
             color=discord.Color.purple()
         )
         
-        # Boosters
         booster_list = []
         for booster_name in ['tiny_booster', 'small_booster', 'medium_booster', 'large_booster']:
             info = self.get_booster_info(booster_name)
@@ -248,20 +269,17 @@ class Shop(commands.Cog):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
         
-        # Check if user has any active boosters
         active_boosters = firebase_manager.get_active_boosters(ctx.author.id)
         if active_boosters:
             active_names = [self.get_booster_info(b['name'])['name'] for b in active_boosters]
             await ctx.send(f"You already have an active booster: **{', '.join(active_names)}**!\nWait for it to expire before using another.", ephemeral=True)
             return
         
-        # Check if user has the booster
         booster_data = user_items.get(booster, {})
         if booster_data.get('amount', 0) <= 0:
             await ctx.send(f"You don't have any **{self.get_booster_info(booster)['name']}**!\nBuy one from `/shop`.", ephemeral=True)
             return
         
-        # Use the booster
         success = firebase_manager.use_item(ctx.author.id, booster)
         
         if success:
@@ -277,7 +295,7 @@ class Shop(commands.Cog):
             await ctx.send(f"Failed to use booster. Please try again.", ephemeral=True)
     
     @commands.hybrid_command(name="equip", description="Equip an owned role")
-    @app_commands.describe(role="The role to equip (e.g., Red, Blue, other_role_1)")
+    @app_commands.describe(role="The role to equip (e.g., Red, Blue, Custom1, Special1)")
     async def equip(self, ctx, role: str):
         role = self.normalize_role_name(role)
         
@@ -288,8 +306,10 @@ class Shop(commands.Cog):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_roles = user_data.get('roles', {})
         
-        if not user_roles.get(role, False):
-            await ctx.send(f"You don't own the **{self.get_role_display_name(role)}** role! Purchase it from `/shop` first.", ephemeral=True)
+        db_key = self.get_db_role_key(role)
+        
+        if not user_roles.get(db_key, False):
+            await ctx.send(f"You don't own the **{role}** role! Purchase it from `/shop` first.", ephemeral=True)
             return
         
         discord_role_id = None
@@ -308,7 +328,7 @@ class Shop(commands.Cog):
             return
         
         if discord_role in ctx.author.roles:
-            await ctx.send(f"You already have the **{self.get_role_display_name(role)}** role equipped!", ephemeral=True)
+            await ctx.send(f"You already have the **{role}** role equipped!", ephemeral=True)
             return
         
         try:
@@ -316,7 +336,7 @@ class Shop(commands.Cog):
             
             embed = discord.Embed(
                 title="✅ Role Equipped!",
-                description=f"You equipped the **{self.get_role_display_name(role)}** role!\nTo unequip use `/unequip {role}`",
+                description=f"You equipped the **{role}** role!\nTo unequip use `/unequip {role}`",
                 color=discord.Color.green()
             )
             await ctx.send(embed=embed)
@@ -325,7 +345,7 @@ class Shop(commands.Cog):
             await ctx.send(f"Failed to equip role. Please contact @sh.or", ephemeral=True)
 
     @commands.hybrid_command(name="unequip", description="Unequip an owned role")
-    @app_commands.describe(role="The role to unequip (e.g., Red, Blue, other_role_1)")
+    @app_commands.describe(role="The role to unequip (e.g., Red, Blue, Custom1, Special1)")
     async def unequip(self, ctx, role: str):
         role = self.normalize_role_name(role)
         
@@ -336,8 +356,10 @@ class Shop(commands.Cog):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_roles = user_data.get('roles', {})
         
-        if not user_roles.get(role, False):
-            await ctx.send(f"You don't own the **{self.get_role_display_name(role)}** role! Purchase it from `/shop` first.", ephemeral=True)
+        db_key = self.get_db_role_key(role)
+        
+        if not user_roles.get(db_key, False):
+            await ctx.send(f"You don't own the **{role}** role! Purchase it from `/shop` first.", ephemeral=True)
             return
         
         discord_role_id = None
@@ -356,7 +378,7 @@ class Shop(commands.Cog):
             return
         
         if discord_role not in ctx.author.roles:
-            await ctx.send(f"You don't have the **{self.get_role_display_name(role)}** role equipped!", ephemeral=True)
+            await ctx.send(f"You don't have the **{role}** role equipped!", ephemeral=True)
             return
         
         try:
@@ -364,7 +386,7 @@ class Shop(commands.Cog):
             
             embed = discord.Embed(
                 title="✅ Role Unequipped!",
-                description=f"You unequipped the **{self.get_role_display_name(role)}** role!\nTo equip use `/equip {role}`",
+                description=f"You unequipped the **{role}** role!\nTo equip use `/equip {role}`",
                 color=discord.Color.green()
             )
             await ctx.send(embed=embed)
