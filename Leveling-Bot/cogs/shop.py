@@ -84,10 +84,10 @@ class Shop(commands.Cog):
             'Blue': 'Blue',
             'Purple': 'Purple',
             'Black': 'Black',
-            'Custom Role 1': 'other_role_1',
-            'Custom Role 2': 'other_role_2',
-            'Special Role 1': 'other_role_3',
-            'Special Role 2': 'other_role_4',
+            'Custom Role 1': 'Custom Role 1',
+            'Custom Role 2': 'Custom Role 2',
+            'Special Role 1': 'Special Role 1',
+            'Special Role 2': 'Special Role 2',
         }
         return role_key_map.get(role_name, role_name)
     
