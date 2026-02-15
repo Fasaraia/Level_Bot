@@ -181,11 +181,31 @@ class FirebaseManager:
     def reset_user(self, user_id):
         user_ref = self.db_ref.child('users').child(str(user_id))
         user_ref.update({
-            'currentXP': 0,
-            'totalXP': 0,
+            'userId': str(user_id),
+            'lastMessageTime': None,
             'level': 0,
             'messageCount': 0,
-            'lastMessageTime': datetime.now().isoformat()
+            'currentXP': 0,
+            'totalXP': 0,
+            'roles': {
+                'Red': False,
+                'Orange': False,
+                'Teal': False,
+                'Blue': False,
+                'Purple': False,
+                'Black': False,
+                'Custom Role 1': False,
+                'Custom Role 2': False,
+                'Special Role 1': False,
+                'Special Role 2': False,
+            },
+            'items': {
+                'tiny_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'small_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'medium_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'large_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'custom_role_pass': {'amount': 0, 'active': 0, 'timeActivated': None}
+            }
         })
     
     def set_user_role(self, user_id, role_name, value=True):
