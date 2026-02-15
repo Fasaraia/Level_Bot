@@ -242,6 +242,8 @@ class Commands(commands.Cog):
     #============================#
     @commands.hybrid_command(name="rank", description="View your rank card")
     async def rank(self, ctx):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
         await ctx.defer()
         
         try:
@@ -263,7 +265,10 @@ class Commands(commands.Cog):
     
     @commands.hybrid_command(name="leaderboard", aliases=["lb"], description="View the server leaderboard")
     async def leaderboard(self, ctx):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
         await ctx.defer()
+        
         
         try:
             leaderboard = firebase_manager.get_leaderboard(limit=10)
@@ -286,6 +291,8 @@ class Commands(commands.Cog):
     
     @commands.hybrid_command(name="weeklylb", aliases=["wlb"], description="View weekly message leaderboard")
     async def weeklylb(self, ctx):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
         await ctx.defer()
         
         try:

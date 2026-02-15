@@ -264,6 +264,9 @@ class Shop(commands.Cog):
 
     @commands.hybrid_command(name="shop", description="View the item shop")
     async def shop(self, ctx):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+        
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_roles = user_data.get('roles', {})
         user_items = user_data.get('items', {})
@@ -340,6 +343,9 @@ class Shop(commands.Cog):
     @commands.hybrid_command(name="buy", description="Buy an item from the shop")
     @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium)")
     async def buy(self, ctx, item: str):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+        
         role = self.normalize_role_name(item)
         item_type, booster = self.normalize_item_name(item)
         
@@ -352,6 +358,9 @@ class Shop(commands.Cog):
 
     @commands.hybrid_command(name="inventory", aliases=["inv"], description="View your inventory")
     async def inventory(self, ctx):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+        
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
 
@@ -449,6 +458,9 @@ class Shop(commands.Cog):
     @commands.hybrid_command(name="use", description="Use an item (booster or custom role pass)")
     @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, customrole)")
     async def use_item(self, ctx, item: str):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+
         item_type, item_name = self.normalize_item_name(item)
         
         if not item_type:
@@ -463,6 +475,9 @@ class Shop(commands.Cog):
     @commands.hybrid_command(name="equip", description="Equip an owned role")
     @app_commands.describe(role="The role to equip")
     async def equip(self, ctx, role: str):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+        
         role = self.normalize_role_name(role)
         
         if not role:
@@ -509,6 +524,9 @@ class Shop(commands.Cog):
     @commands.hybrid_command(name="unequip", description="Unequip an owned role")
     @app_commands.describe(role="The role to unequip (e.g., Red, Blue, Custom1, Special1)")
     async def unequip(self, ctx, role: str):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+            
         role = self.normalize_role_name(role)
         
         if not role:

@@ -1,8 +1,9 @@
 import firebase_admin
 from firebase_admin import credentials, db
-from datetime import datetime
+from datetime import datetime, timedelta
 import math
 import os
+
 
 class FirebaseManager:
     def __init__(self, cred_path='config/serviceAccountKey.json'):
@@ -366,4 +367,60 @@ class FirebaseManager:
         })
         print(f"Cleared custom role pass data for user {user_id}")
 
-firebase_manager = FirebaseManager()#
+    #=============================#
+    #       AUCTION STUFF         #
+    #=============================#
+
+    def create_auction(self, item_type, starting_bid, duration_hours, started_by, started_by_name):
+        auction_id = started_by_name.lower().replace(' ', '_')
+        
+        auction_ref = self.db_ref.child('auctions').child(auction_id)
+        end_time = datetime.now() + timedelta(hours=duration_hours)
+        
+        auction_ref.set({
+            'auctionId': auction_id,
+            'itemType': item_type,
+            'startingBid': starting_bid,
+            'highestBid': starting_bid,
+            'highestBidder': None,
+            'startTime': datetime.now().isoformat(),
+            'endTime': end_time.isoformat(),
+            'startedBy': str(started_by),
+            'active': True
+        })
+        
+        return auction_id
+
+    def get_auction(self, auction_id):
+        auction_ref = self.db_ref.child('auctions').child(auction_id)
+        return auction_ref.get()
+
+    def get_active_auctions(self):
+        auctions_ref = self.db_ref.child('auctions')
+        all_auctions = auctions_ref.get() or {}
+        
+        active = {}
+        for auction_id, auction_data in all_auctions.items():
+            if auction_data.get('active', False):
+                active[auction_id] = auction_data
+        
+        return active
+
+    def update_auction_bid(self, auction_id, bidder_id, amount):
+        auction_ref = self.db_ref.child('auctions').child(auction_id)
+        auction_ref.update({
+            'highestBid': amount,
+            'highestBidder': str(bidder_id)
+        })
+
+    def delete_auction(self, auction_id):
+        auction_ref = self.db_ref.child('auctions').child(auction_id)
+        auction_ref.delete()
+
+    def set_auction_message_id(self, auction_id, message_id):
+        auction_ref = self.db_ref.child('auctions').child(auction_id)
+        auction_ref.update({
+            'messageId': str(message_id)
+        })
+
+firebase_manager = FirebaseManager()

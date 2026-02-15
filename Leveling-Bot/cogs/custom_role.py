@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from utils import firebase_manager
 from datetime import datetime
+from config import config as bot_config
 import aiohttp
 
 class CustomRoles(commands.Cog):
@@ -16,6 +17,8 @@ class CustomRoles(commands.Cog):
         icon="Image icon (URL or emoji) for your role (optional)"
     )
     async def customrole(self, ctx, name: str, color: str, icon: str = None):
+        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
         
