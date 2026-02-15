@@ -56,7 +56,7 @@ class Shop(commands.Cog):
             return ('booster', booster_map[item_input_clean])
         
         # Check custom role pass
-        crp_aliases = ['custom_role_pass', 'customrolepass', 'crp', 'custompass', 'rolepass', 'custom roll pass']
+        crp_aliases = ['custom_role_pass', 'customrolepass', 'customrole', 'custompass', 'rolepass', 'custom roll pass']
         if item_input_clean in crp_aliases:
             return ('custom_role_pass', 'custom_role_pass')
         
@@ -326,7 +326,7 @@ class Shop(commands.Cog):
         await ctx.send(embed=embed)
     
     @commands.hybrid_command(name="use", description="Use an item (booster or custom role pass)")
-    @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, crp)")
+    @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, customrole)")
     async def use_item(self, ctx, item: str):
         item_type, item_name = self.normalize_item_name(item)
         
@@ -416,7 +416,7 @@ class Shop(commands.Cog):
             description=f"You activated a **Custom Role Pass**!\n\n**Duration:** 30 days\n**Remaining passes:** {crp_amount - 1}",
             color=discord.Color.gold()
         )
-        embed.set_footer(text="Contact an admin to create your custom role!")
+        embed.set_footer(text="Contact @sh.or for gradient colours (If available)!")
         
         await ctx.send(embed=embed)
 

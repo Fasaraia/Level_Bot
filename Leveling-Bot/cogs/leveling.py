@@ -50,52 +50,58 @@ class Leveling(commands.Cog):
     
     @tasks.loop(seconds=bot_config.CUSTOM_ROLE_CHECK_INTERVAL)
     async def check_custom_role_expiry(self):
-
-        all_users = self.bot.firebase_manager.get_all_users_with_custom_roles()
+        all_users = firebase_manager.get_all_users_with_custom_roles()
+        
         for user_id, crp_data in all_users.items():
             crp_time = crp_data.get('timeActivated')
-            if not crp_time:
+            role_id = crp_data.get('roleId')
+            
+            if not crp_time or not role_id:
                 continue
 
             activated_time = datetime.fromisoformat(crp_time)
             current_time = datetime.now()
             time_diff = current_time - activated_time
             hours_passed = time_diff.total_seconds() / 3600
-            duration_hours = 30 * 24 
+            duration_hours = 30 * 24
             
             if hours_passed >= duration_hours:
-                # Find and remove the custom role from all guilds
+                role_deleted = False
+                member_notified = False
+                
                 for guild in self.bot.guilds:
-                    member = await guild.fetch_member(int(user_id))
-                    if member:
-                        # Find custom role (starts with ⭐)
-                        custom_role = None
-                        for role in member.roles:
-                            if role.name.startswith("⭐ "):
-                                custom_role = role
-                                break
+                    custom_role = guild.get_role(role_id)
+                    
+                    if custom_role:
+                        member = guild.get_member(int(user_id))
                         
-                        if custom_role:
+                        if member:
                             await member.remove_roles(custom_role)
+                            print(f"Removed role {custom_role.name} from {member.name}")
                             
+                            if not member_notified:
+                                try:
+                                    embed = discord.Embed(
+                                        title="⚠️ Custom Role Expired",
+                                        description=f"Your custom role **{custom_role.name}** has been removed because your Custom Role Pass expired (30 days).",
+                                        color=discord.Color.orange()
+                                    )
+                                    embed.add_field(
+                                        name="Want it back?",
+                                        value="Use `/use customrole` to activate a new Custom Role Pass and `/customrole` to recreate it!"
+                                    )
+                                    await member.send(embed=embed)
+                                    member_notified = True
+                                except discord.Forbidden:
+                                    pass
+                        
+                        if not role_deleted:
                             await custom_role.delete(reason="Custom Role Pass expired")
-                            
-                            print(f"Removed expired custom role from {member.name}")
-                            
-                            # Send DM to user
-                            try:
-                                embed = discord.Embed(
-                                    title="⚠️ Custom Role Expired",
-                                    description=f"Your custom role **{custom_role.name}** has been removed because your Custom Role Pass expired (30 days).",
-                                    color=discord.Color.orange()
-                                )
+                            role_deleted = True
+                            print(f"Deleted custom role {custom_role.name}")
 
-                                await member.send(embed=embed)
-                            except discord.Forbidden:
-                                pass  
+                firebase_manager.clear_custom_role_pass(user_id)
 
-                firebase_manager.clear_custom_role_pass_time(user_id)
-    
     @check_custom_role_expiry.before_loop
     async def before_check_custom_role_expiry(self):
         await self.bot.wait_until_ready()

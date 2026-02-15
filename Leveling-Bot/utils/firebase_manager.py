@@ -74,7 +74,7 @@ class FirebaseManager:
                 'large_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
                 'custom_role_pass': {'amount': 0, 'timeActivated': None, 'roleId': None}
             }
-        }
+        }   
     
     def calculate_xp_for_level(self, level):
         return math.floor(12.25 * (level ** 2))

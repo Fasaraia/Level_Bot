@@ -16,7 +16,6 @@ class CustomRoles(commands.Cog):
         icon="Image icon (URL or emoji) for your role (optional)"
     )
     async def customrole(self, ctx, name: str, color: str, icon: str = None):
-        # Check if user has an active custom role pass
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
         
@@ -24,25 +23,23 @@ class CustomRoles(commands.Cog):
         crp_time = crp_data.get('timeActivated')
         
         if not crp_time:
-            await ctx.send("You don't have an active **Custom Role Pass**!\nUse `/use crp` to activate one.", ephemeral=True)
+            await ctx.send("You don't have an active **Custom Role Pass**!\nUse `/use customrole` to activate one.", ephemeral=True)
             return
         
-        # Check if pass is still valid
         try:
             activated_time = datetime.fromisoformat(crp_time)
             current_time = datetime.now()
             time_diff = current_time - activated_time
             hours_passed = time_diff.total_seconds() / 3600
-            duration_hours = 30 * 24  # 30 days
+            duration_hours = 30 * 24
             
             if hours_passed >= duration_hours:
-                await ctx.send("Your **Custom Role Pass** has expired!\nUse `/use crp` to activate a new one.", ephemeral=True)
+                await ctx.send("Your **Custom Role Pass** has expired!\nUse `/use customrole` to activate a new one.", ephemeral=True)
                 return
         except:
             await ctx.send("Error checking your Custom Role Pass status.", ephemeral=True)
             return
         
-        # Validate and parse color
         color = color.strip().replace('#', '')
         
         if len(color) != 6:
@@ -56,7 +53,6 @@ class CustomRoles(commands.Cog):
             await ctx.send("Invalid color! Make sure to use a valid hex color code.", ephemeral=True)
             return
         
-        # Validate role name
         if len(name) > 100:
             await ctx.send("Role name is too long! Maximum 100 characters.", ephemeral=True)
             return
@@ -65,24 +61,25 @@ class CustomRoles(commands.Cog):
             await ctx.send("Role name is too short! Minimum 2 characters.", ephemeral=True)
             return
         
-        # Check if user already has a custom role stored
         existing_role = None
         stored_role_id = crp_data.get('roleId')
         
         if stored_role_id:
             existing_role = ctx.guild.get_role(stored_role_id)
         
-        # Process icon if provided
         icon_bytes = None
         display_icon = None
         if icon:
-            # Check if it's a URL (for custom icon image)
             if icon.startswith('http://') or icon.startswith('https://'):
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(icon) as resp:
                             if resp.status == 200:
                                 icon_bytes = await resp.read()
+                                
+                                if len(icon_bytes) > 256 * 1024:
+                                    await ctx.send("Image is too large! Maximum size is 256KB.", ephemeral=True)
+                                    return
                                 
                                 display_icon = "Custom Image"
                             else:
@@ -92,48 +89,44 @@ class CustomRoles(commands.Cog):
                     await ctx.send(f"Error downloading icon: {e}", ephemeral=True)
                     return
             else:
-                # It's an emoji (unicode or custom)
                 display_icon = icon
         
-        # Create or update the role
         try:
             if existing_role:
-                # Update existing role
-                if icon_bytes:
-                    await existing_role.edit(name=name, color=discord_color, icon=icon_bytes)
-                elif icon and not icon.startswith('http'):
-                    await existing_role.edit(name=name, color=discord_color, unicode_emoji=icon)
-                else:
-                    await existing_role.edit(name=name, color=discord_color)
+                edit_kwargs = {
+                    "name": name,
+                    "color": discord_color
+                }
                 
-                # Make sure user has the role
+                if icon_bytes:
+                    edit_kwargs["icon"] = icon_bytes
+                elif icon and not icon.startswith('http'):
+                    edit_kwargs["unicode_emoji"] = icon
+                
+                await existing_role.edit(**edit_kwargs)
+                
                 if existing_role not in ctx.author.roles:
                     await ctx.author.add_roles(existing_role)
                 
                 action = "updated"
                 role_id = existing_role.id
             else:
-                # Create new role
                 role_kwargs = {
                     "name": name,
                     "color": discord_color,
                     "reason": f"Custom role created by {ctx.author} using Custom Role Pass"
                 }
                 
-                # Add icon if provided
                 if icon_bytes:
                     role_kwargs["icon"] = icon_bytes
                 elif icon and not icon.startswith('http'):
                     role_kwargs["unicode_emoji"] = icon
                 
                 new_role = await ctx.guild.create_role(**role_kwargs)
-                
-                # Add role to user
                 await ctx.author.add_roles(new_role)
                 action = "created"
                 role_id = new_role.id
             
-            # Store role ID in database
             firebase_manager.set_custom_role_id(ctx.author.id, role_id)
             
             embed = discord.Embed(
