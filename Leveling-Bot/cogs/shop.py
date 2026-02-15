@@ -250,11 +250,11 @@ class Shop(commands.Cog):
         })
         
         embed = discord.Embed(
-            title="✅ Custom Role Pass Activated!",
-            description=f"You activated a **Custom Role Pass**!\n\n**Duration:** 30 days\n**Remaining passes:** {crp_amount - 1}",
+            title="Custom Role Pass Activated!",
+            description=f"You activated a **Custom Role Pass**!\n\n**Duration:** 30 days\n\n-# Message <@278365147167326208> for gradient colours (If available)!",
             color=discord.Color.gold()
         )
-        embed.set_footer(text="Message <@278365147167326208> for gradient colours (If available)!")
+
         
         await ctx.send(embed=embed)
 

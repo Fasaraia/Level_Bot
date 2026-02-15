@@ -130,7 +130,7 @@ class CustomRoles(commands.Cog):
             firebase_manager.set_custom_role_id(ctx.author.id, role_id)
             
             embed = discord.Embed(
-                title=f"✅ Custom Role {action.capitalize()}!",
+                title=f"Custom Role {action.capitalize()}!",
                 description=f"Your custom role **{name}** has been {action}!",
                 color=discord_color
             )
@@ -142,7 +142,7 @@ class CustomRoles(commands.Cog):
             await ctx.send(embed=embed)
             
         except discord.Forbidden:
-            await ctx.send("I don't have permission to create/edit roles! Please contact an administrator.", ephemeral=True)
+            await ctx.send("I don't have permission to create/edit roles! Please contact <@270134285061893120>.", ephemeral=True)
         except discord.HTTPException as e:
             await ctx.send(f"Failed to create role: {e}", ephemeral=True)
 
