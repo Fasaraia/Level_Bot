@@ -341,23 +341,23 @@ class Shop(commands.Cog):
     @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium)")
     async def buy(self, ctx, item: str):
         role = self.normalize_role_name(item)
-        booster = self.normalize_item_name(item)
+        item_type, booster = self.normalize_item_name(item)
         
         if role:
             await self._buy_role(ctx, role)
-        elif booster:
+        elif item_type == 'booster':
             await self._buy_booster(ctx, booster)
         else:
-            await ctx.send(f"Item doesn't exist or isn't purchasable in the shop!", ephemeral=True)
+            await ctx.send("Item doesn't exist or isn't purchasable in the shop!", ephemeral=True)
 
     @commands.hybrid_command(name="inventory", aliases=["inv"], description="View your inventory")
     async def inventory(self, ctx):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
-        
+
         embed = discord.Embed(
             title="Your Inventory",
-            description="Your owned items and boosters",
+            description="Your owned items and boosters\nView owned roles from `/shop`",
             color=discord.Color.purple()
         )
         
@@ -368,12 +368,39 @@ class Shop(commands.Cog):
             item_data = user_items.get(booster_name, {})
             amount = item_data.get('amount', 0)
             active = item_data.get('active', 0)
+            time_activated = item_data.get('timeActivated')
             
-            status = "🟢 Active" if active else f"Amount: {amount}"
+            if active and time_activated:
+                try:
+                    activated_time = datetime.fromisoformat(time_activated)
+                    current_time = datetime.now()
+                    time_diff = current_time - activated_time
+                    hours_passed = time_diff.total_seconds() / 3600
+                    
+                    duration_hours = 3 * 24
+                    hours_remaining = duration_hours - hours_passed
+                    
+                    if hours_remaining > 0:
+                        days_remaining = int(hours_remaining // 24)
+                        hours_only = int(hours_remaining % 24)
+                        
+                        if days_remaining > 0:
+                            time_left = f"{days_remaining}d {hours_only}h remaining"
+                        else:
+                            time_left = f"{hours_only}h remaining"
+                        
+                        status = f"Active | {time_left}"
+                    else:
+                        status = f"Amount: {amount}"
+                except:
+                    status = f"Amount: {amount}"
+            else:
+                status = f"Amount: {amount}"
+            
             booster_list.append(f"**{info['name']}** - {status}")
         
         embed.add_field(
-            name="⚡ XP Boosters",
+            name="XP Boosters",
             value="\n".join(booster_list),
             inline=False
         )
@@ -388,12 +415,10 @@ class Shop(commands.Cog):
                 activated_time = datetime.fromisoformat(crp_time)
                 current_time = datetime.now()
                 
-                # Calculate time passed (in hours)
                 time_diff = current_time - activated_time
                 hours_passed = time_diff.total_seconds() / 3600
                 
-                # 30 day duration for custom role pass
-                duration_hours = 30 * 24  # 30 days
+                duration_hours = 30 * 24
                 hours_remaining = duration_hours - hours_passed
                 
                 if hours_remaining > 0:
@@ -414,13 +439,13 @@ class Shop(commands.Cog):
             crp_status = f"Amount: {crp_amount} | Not activated"
         
         embed.add_field(
-            name="🎨 Custom Role Pass",
-            value=f"**Custom Role Pass** - {crp_status}",
+            name="Custom Role Pass",
+            value=f"**Custom Role Pass** - {crp_status}\n`/use customrole` to activate\n`/customrole` to create a custom role when active",
             inline=False
         )
         
         await ctx.send(embed=embed)
-    
+
     @commands.hybrid_command(name="use", description="Use an item (booster or custom role pass)")
     @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, customrole)")
     async def use_item(self, ctx, item: str):
