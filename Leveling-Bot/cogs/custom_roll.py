@@ -37,7 +37,7 @@ class CustomRoles(commands.Cog):
                 await ctx.send("Your **Custom Role Pass** has expired!\nUse `/use customrole` to activate a new one.", ephemeral=True)
                 return
         except:
-            await ctx.send("Error checking your Custom Role Pass status.", ephemeral=True)
+            await ctx.send("Error checking your Custom Role Pass status. Message <@278365147167326208>", ephemeral=True)
             return
         
         color = color.strip().replace('#', '')

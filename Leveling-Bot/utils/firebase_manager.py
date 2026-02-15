@@ -17,6 +17,10 @@ class FirebaseManager:
         firebase_admin.initialize_app(cred, {'databaseURL': database_url})
         self.db_ref = db.reference()
     
+    #======================#
+    #  Weekly Reset Logic  #
+    #======================#
+
     def _get_current_week(self):
         now = datetime.now()
         week_number = now.isocalendar()[1]
@@ -47,6 +51,10 @@ class FirebaseManager:
             return True
         return False
     
+    #=============================#
+    # User Default Data Structure #
+    #=============================#
+
     def _create_default_user(self, user_id):
         return {
             'userId': str(user_id),
@@ -76,6 +84,10 @@ class FirebaseManager:
             }
         }   
     
+    #=============================#
+    #  XP and Level Calculations  #
+    #=============================#
+
     def calculate_xp_for_level(self, level):
         return math.floor(12.25 * (level ** 2))
     
@@ -92,6 +104,10 @@ class FirebaseManager:
         xp_at_level_start = self.calculate_xp_for_level(current_level)
         return total_xp - xp_at_level_start
     
+    #=============================#
+    #       User Data Loader      #
+    #=============================#
+
     def get_user_data(self, user_id):
         user_ref = self.db_ref.child('users').child(str(user_id))
         user_data = user_ref.get()
@@ -103,6 +119,66 @@ class FirebaseManager:
         
         return user_data
     
+    def get_user_roles(self, user_id):
+        user_data = self.get_user_data(user_id)
+        return user_data.get('roles', {})
+  
+    def get_user_items(self, user_id):
+        user_data = self.get_user_data(user_id)
+        return user_data.get('items', {})
+    
+    def get_active_boosters(self, user_id):
+        items = self.get_user_items(user_id)
+        active_boosters = []
+        
+        for item_name, item_data in items.items():
+            if 'booster' in item_name and item_data.get('active', 0) == 1:
+                active_boosters.append({
+                    'name': item_name,
+                    'timeActivated': item_data.get('timeActivated')
+                })
+        
+        return active_boosters
+    
+    def get_all_active_boosters_all_users(self):
+        all_users_ref = self.db_ref.child('users')
+        all_users = all_users_ref.get()
+        
+        if not all_users:
+            return {}
+        
+        active_boosters_map = {}
+        
+        for user_id, user_data in all_users.items():
+            items = user_data.get('items', {})
+            active = [
+                item_name for item_name, item_data in items.items()
+                if 'booster' in item_name and item_data.get('active', 0) == 1
+            ]
+            
+            if active:
+                active_boosters_map[user_id] = active
+        
+        return active_boosters_map
+    
+    def get_all_users_with_custom_roles(self):
+        users_ref = self.db_ref.child('users')
+        all_users = users_ref.get() or {}
+        
+        users_with_crp = {}
+        
+        for user_id, user_data in all_users.items():
+            items = user_data.get('items', {})
+            crp_data = items.get('custom_role_pass', {})
+            
+            if crp_data.get('timeActivated') and crp_data.get('roleId'):
+                users_with_crp[user_id] = crp_data
+        
+        return users_with_crp
+
+    #=============================#
+    #    User Data Manipulation   #
+    #=============================#
     def add_xp(self, user_id, username, xp_amount):
         self._check_and_reset_weekly()
         
@@ -169,6 +245,45 @@ class FirebaseManager:
             }
         })
     
+    def set_user_role(self, user_id, role_name, value=True):
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('roles')
+        user_ref.update({role_name: value})
+    
+    def set_custom_role_id(self, user_id, role_id):
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child('custom_role_pass')
+        user_ref.update({'roleId': role_id})
+        print(f"Stored custom role ID {role_id} for user {user_id}")
+
+    def add_item(self, user_id, item_name, amount=1):
+        user_data = self.get_user_data(user_id)
+        current_amount = user_data.get('items', {}).get(item_name, {}).get('amount', 0)
+        
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
+        user_ref.update({'amount': current_amount + amount})
+    
+    def use_item(self, user_id, item_name):
+        user_data = self.get_user_data(user_id)
+        item_data = user_data.get('items', {}).get(item_name, {})
+        
+        if item_data.get('amount', 0) <= 0:
+            return False
+        
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
+        user_ref.update({
+            'amount': item_data['amount'] - 1,
+            'active': 1,
+            'timeActivated': datetime.now().isoformat()
+        })
+        return True
+    
+    def deactivate_item(self, user_id, item_name):
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
+        user_ref.update({'active': 0, 'timeActivated': None})
+    
+    #=============================#
+    #         Leaderboards        #
+    #=============================#
+
     def get_leaderboard(self, limit=10):
         users_ref = self.db_ref.child('users')
         all_users = users_ref.get()
@@ -219,78 +334,9 @@ class FirebaseManager:
         
         return weekly_data[:limit]
     
-    def set_user_role(self, user_id, role_name, value=True):
-        user_ref = self.db_ref.child('users').child(str(user_id)).child('roles')
-        user_ref.update({role_name: value})
-    
-    def get_user_roles(self, user_id):
-        user_data = self.get_user_data(user_id)
-        return user_data.get('roles', {})
-    
-    def add_item(self, user_id, item_name, amount=1):
-        user_data = self.get_user_data(user_id)
-        current_amount = user_data.get('items', {}).get(item_name, {}).get('amount', 0)
-        
-        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
-        user_ref.update({'amount': current_amount + amount})
-    
-    def use_item(self, user_id, item_name):
-        user_data = self.get_user_data(user_id)
-        item_data = user_data.get('items', {}).get(item_name, {})
-        
-        if item_data.get('amount', 0) <= 0:
-            return False
-        
-        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
-        user_ref.update({
-            'amount': item_data['amount'] - 1,
-            'active': 1,
-            'timeActivated': datetime.now().isoformat()
-        })
-        return True
-    
-    def deactivate_item(self, user_id, item_name):
-        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child(item_name)
-        user_ref.update({'active': 0, 'timeActivated': None})
-    
-    def get_user_items(self, user_id):
-        user_data = self.get_user_data(user_id)
-        return user_data.get('items', {})
-    
-    def get_active_boosters(self, user_id):
-        items = self.get_user_items(user_id)
-        active_boosters = []
-        
-        for item_name, item_data in items.items():
-            if 'booster' in item_name and item_data.get('active', 0) == 1:
-                active_boosters.append({
-                    'name': item_name,
-                    'timeActivated': item_data.get('timeActivated')
-                })
-        
-        return active_boosters
-    
-    def get_all_active_boosters_all_users(self):
-        all_users_ref = self.db_ref.child('users')
-        all_users = all_users_ref.get()
-        
-        if not all_users:
-            return {}
-        
-        active_boosters_map = {}
-        
-        for user_id, user_data in all_users.items():
-            items = user_data.get('items', {})
-            active = [
-                item_name for item_name, item_data in items.items()
-                if 'booster' in item_name and item_data.get('active', 0) == 1
-            ]
-            
-            if active:
-                active_boosters_map[user_id] = active
-        
-        return active_boosters_map
-    
+    #=============================#
+    #    Booster & Role Helpers   #
+    #=============================#
     def check_booster_expiry(self, user_id, booster_name, duration_minutes):
         items = self.get_user_items(user_id)
         booster = items.get(booster_name, {})
@@ -312,26 +358,6 @@ class FirebaseManager:
             print(f"Error checking booster expiry: {e}")
             return False
     
-    def set_custom_role_id(self, user_id, role_id):
-        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child('custom_role_pass')
-        user_ref.update({'roleId': role_id})
-        print(f"Stored custom role ID {role_id} for user {user_id}")
-
-    def get_all_users_with_custom_roles(self):
-        users_ref = self.db_ref.child('users')
-        all_users = users_ref.get() or {}
-        
-        users_with_crp = {}
-        
-        for user_id, user_data in all_users.items():
-            items = user_data.get('items', {})
-            crp_data = items.get('custom_role_pass', {})
-            
-            if crp_data.get('timeActivated') and crp_data.get('roleId'):
-                users_with_crp[user_id] = crp_data
-        
-        return users_with_crp
-
     def clear_custom_role_pass(self, user_id):
         user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child('custom_role_pass')
         user_ref.update({
@@ -340,4 +366,4 @@ class FirebaseManager:
         })
         print(f"Cleared custom role pass data for user {user_id}")
 
-firebase_manager = FirebaseManager()
+firebase_manager = FirebaseManager()#

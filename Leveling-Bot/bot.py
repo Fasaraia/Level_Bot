@@ -24,6 +24,7 @@ class LevelingBot(commands.Bot):
     async def setup_hook(self):
         await self.load_extension('cogs.leveling')
         await self.load_extension('cogs.shop')
+        await self.load_extension('cogs.commands')
         await self.load_extension('cogs.custom_roll')
         print("Syncing commands...")
         await self.tree.sync()
