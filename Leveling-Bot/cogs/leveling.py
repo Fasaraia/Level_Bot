@@ -90,20 +90,20 @@ class Leveling(commands.Cog):
         if not self.check_cooldown(message.author.id):
             return
         
-        base_xp = bot_config.XP_BASE
+        base_xp = float(bot_config.XP_BASE)
         bonus_multiplier = 1.0
         
         # Role bonus multiplier
         for role in message.author.roles:
             if role.id in bot_config.XP_BONUS_ROLE:
-                bonus_multiplier += (bot_config.XP_BONUS_ROLE[role.id] / 100)
+                bonus_multiplier += (bot_config.XP_BONUS_ROLE[role.id] / 100.0)
         
         # Booster multiplier
         booster_multiplier = self.calculate_booster_multiplier(message.author.id)
         
-        # Calculate total XP with all multipliers
+        # Calculate total XP with all multipliers (keep as float)
         total_multiplier = bonus_multiplier * booster_multiplier
-        xp_gain = int(base_xp * total_multiplier)
+        xp_gain = round(base_xp * total_multiplier, 2)  # Float with 2 decimals
         
         result = firebase_manager.add_xp(
             message.author.id,

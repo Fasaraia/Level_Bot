@@ -224,7 +224,7 @@ class Shop(commands.Cog):
             color=discord.Color.green()
         )
         embed.add_field(name="Remaining XP", value=f"{user_xp - price:,}", inline=True)
-        embed.add_field(name="Duration", value=f"7 days", inline=True)
+        embed.add_field(name="Duration", value=f"3 days", inline=True)
         
         await ctx.send(embed=embed)
     
