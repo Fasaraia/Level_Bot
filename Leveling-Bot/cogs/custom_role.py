@@ -10,15 +10,11 @@ class CustomRoles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    @commands.hybrid_command(name="customrole", description="Create your custom role (requires active Custom Role Pass)")
-    @app_commands.describe(
-        name="The name of your custom role",
-        color="The color in hex format (e.g., #FF5733 or FF5733)",
-        icon="Image icon (URL or emoji) for your role (optional)"
-    )
+    @commands.command(name="customrole", description="Create your custom role (requires active Custom Role Pass)")
     async def customrole(self, ctx, name: str, color: str, icon: str = None):
         if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
+        
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
         
@@ -26,7 +22,7 @@ class CustomRoles(commands.Cog):
         crp_time = crp_data.get('timeActivated')
         
         if not crp_time:
-            await ctx.send("You don't have an active **Custom Role Pass**!\nUse `/use customrole` to activate one.", ephemeral=True)
+            await ctx.send("You don't have an active **Custom Role Pass**!\nUse `!use customrole` to activate one.")
             return
         
         try:
@@ -37,31 +33,31 @@ class CustomRoles(commands.Cog):
             duration_hours = 30 * 24
             
             if hours_passed >= duration_hours:
-                await ctx.send("Your **Custom Role Pass** has expired!\nUse `/use customrole` to activate a new one.", ephemeral=True)
+                await ctx.send("Your **Custom Role Pass** has expired!\nUse `!use customrole` to activate a new one.")
                 return
         except:
-            await ctx.send("Error checking your Custom Role Pass status. Message <@278365147167326208>", ephemeral=True)
+            await ctx.send("Error checking your Custom Role Pass status. Message <@278365147167326208>")
             return
         
         color = color.strip().replace('#', '')
         
         if len(color) != 6:
-            await ctx.send("Invalid color format! Use hex format like `#FF5733` or `FF5733`", ephemeral=True)
+            await ctx.send("Invalid color format! Use hex format like `#FF5733` or `FF5733`")
             return
         
         try:
             color_int = int(color, 16)
             discord_color = discord.Color(color_int)
         except ValueError:
-            await ctx.send("Invalid color! Make sure to use a valid hex color code.", ephemeral=True)
+            await ctx.send("Invalid color! Make sure to use a valid hex color code.")
             return
         
         if len(name) > 100:
-            await ctx.send("Role name is too long! Maximum 100 characters.", ephemeral=True)
+            await ctx.send("Role name is too long! Maximum 100 characters.")
             return
         
         if len(name) < 2:
-            await ctx.send("Role name is too short! Minimum 2 characters.", ephemeral=True)
+            await ctx.send("Role name is too short! Minimum 2 characters.")
             return
         
         existing_role = None
@@ -81,15 +77,15 @@ class CustomRoles(commands.Cog):
                                 icon_bytes = await resp.read()
                                 
                                 if len(icon_bytes) > 256 * 1024:
-                                    await ctx.send("Image is too large! Maximum size is 256KB.", ephemeral=True)
+                                    await ctx.send("Image is too large! Maximum size is 256KB.")
                                     return
                                 
                                 display_icon = "Custom Image"
                             else:
-                                await ctx.send(f"Failed to download icon image! Status: {resp.status}", ephemeral=True)
+                                await ctx.send(f"Failed to download icon image! Status: {resp.status}")
                                 return
                 except Exception as e:
-                    await ctx.send(f"Error downloading icon: {e}", ephemeral=True)
+                    await ctx.send(f"Error downloading icon: {e}")
                     return
             else:
                 display_icon = icon
@@ -145,10 +141,9 @@ class CustomRoles(commands.Cog):
             await ctx.send(embed=embed)
             
         except discord.Forbidden:
-            await ctx.send("I don't have permission to create/edit roles! Please contact <@270134285061893120>.", ephemeral=True)
+            await ctx.send("I don't have permission to create/edit roles! Please contact <@270134285061893120>.")
         except discord.HTTPException as e:
-            await ctx.send(f"Failed to create role: {e}", ephemeral=True)
-
+            await ctx.send(f"Failed to create role: {e}")
 
 async def setup(bot):
     await bot.add_cog(CustomRoles(bot))

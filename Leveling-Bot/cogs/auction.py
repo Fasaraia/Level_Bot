@@ -138,15 +138,15 @@ class Auctions(commands.Cog):
         except Exception as e:
             print(f"Error completing auction {auction_id}: {e}")
     
-    @commands.hybrid_command(name="startauction", description="Start an auction (Auctioneer only)")
+    @app_commands.command(name="startauction", description="Start an auction (Auctioneer only)")
     @app_commands.describe(
         item="Item to auction (special1, special2, customrole, largebooster)",
         duration="Duration in hours (1-72)",
         starting_bid="Starting bid amount (optional)"
     )
-    async def start_auction(self, ctx, item: str, duration: int, starting_bid: int = None):
-        if not self.has_auctioneer_role(ctx.author):
-            await ctx.send("You don't have permission to start auctions!", ephemeral=True)
+    async def start_auction(self, interaction: discord.Interaction, item: str, duration: int, starting_bid: int = None):
+        if not self.has_auctioneer_role(interaction.user):
+            await interaction.response.send_message("You don't have permission to start auctions!", ephemeral=True)
             return
         
         item_map = {
@@ -166,11 +166,11 @@ class Auctions(commands.Cog):
         
         item_type = item_map.get(item.lower())
         if not item_type:
-            await ctx.send("Invalid item! Use: `special1`, `special2`, `customrole`, or `largebooster`", ephemeral=True)
+            await interaction.response.send_message("Invalid item! Use: `special1`, `special2`, `customrole`, or `largebooster`", ephemeral=True)
             return
         
         if duration < 1 or duration > 72:
-            await ctx.send("Duration must be between 1 and 72 hours!", ephemeral=True)
+            await interaction.response.send_message("Duration must be between 1 and 72 hours!", ephemeral=True)
             return
         
         item_info = self.get_auction_item_info(item_type)
@@ -178,7 +178,7 @@ class Auctions(commands.Cog):
             starting_bid = item_info['starting_bid']
         
         if starting_bid < 100:
-            await ctx.send("Starting bid must be at least 100 XP!", ephemeral=True)
+            await interaction.response.send_message("Starting bid must be at least 100 XP!", ephemeral=True)
             return
         
         end_time = datetime.now() + timedelta(hours=duration)
@@ -187,8 +187,7 @@ class Auctions(commands.Cog):
             item_type=item_type,
             starting_bid=starting_bid,
             duration_hours=duration,
-            started_by=ctx.author.id,
-            started_by_name=ctx.author.name
+            started_by=interaction.user.id
         )
         
         embed = discord.Embed(
@@ -207,60 +206,73 @@ class Auctions(commands.Cog):
             message = await auction_channel.send(embed=embed)
             firebase_manager.set_auction_message_id(auction_id, message.id)
         
-        await ctx.send(f"Auction started! ID: `{auction_id}`", ephemeral=True)
+        await interaction.response.send_message(f"Auction started! ID: `{auction_id}`", ephemeral=True)
     
-    @commands.hybrid_command(name="bid", description="Place a bid on an active auction")
+    @app_commands.command(name="bid", description="Place a bid on an active auction")
     @app_commands.describe(
         auction_id="The auction ID",
         amount="Your bid amount"
     )
-    async def bid(self, ctx, auction_id: str, amount: int):
-        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+    async def bid(self, interaction: discord.Interaction, auction_id: str, amount: int):
+        if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
         auction = firebase_manager.get_auction(auction_id)
         
         if not auction:
-            await ctx.send("Auction not found!", ephemeral=True)
+            await interaction.response.send_message("Auction not found!", ephemeral=True)
             return
         
         if amount < 100:
-            await ctx.send("Bid must be at least 100 XP!", ephemeral=True)
+            await interaction.response.send_message("Bid must be at least 100 XP!", ephemeral=True)
             return
         
-        user_data = firebase_manager.get_user_data(ctx.author.id)
+        user_data = firebase_manager.get_user_data(interaction.user.id)
         user_xp = user_data['currentXP']
         
-        if user_xp < amount:
-            await ctx.send(f"Not enough XP! You have {user_xp:,} XP but bid {amount:,} XP.", ephemeral=True)
-            return
-        
         current_highest = auction.get('highestBid', auction.get('startingBid', 0))
-        
-        if amount <= current_highest:
-            await ctx.send(f"Your bid must be higher than the current bid of {current_highest:,} XP!", ephemeral=True)
-            return
-        
         previous_bidder = auction.get('highestBidder')
-        previous_bid = auction.get('highestBid', 0)
         
-        if previous_bidder and previous_bidder != str(ctx.author.id):
-            firebase_manager.add_xp(int(previous_bidder), "Auction Refund", previous_bid)
+        is_own_bid = previous_bidder == str(interaction.user.id)
+        
+        if is_own_bid:
+            xp_difference = amount - current_highest
             
-            try:
-                prev_user = await self.bot.fetch_user(int(previous_bidder))
-                refund_embed = discord.Embed(
-                    title="Bid Refunded",
-                    description=f"Your bid of **{previous_bid:,} XP** was outbid on auction `{auction_id}`.",
-                    color=discord.Color.orange()
-                )
-                await prev_user.send(embed=refund_embed)
-            except:
-                pass
+            if xp_difference <= 0:
+                await interaction.response.send_message(f"Your new bid must be higher than your current bid of {current_highest:,} XP!", ephemeral=True)
+                return
+            
+            if user_xp < xp_difference:
+                await interaction.response.send_message(f"Not enough XP! You need {xp_difference:,} more XP to increase your bid to {amount:,} XP.", ephemeral=True)
+                return
+            
+            firebase_manager.add_xp(interaction.user.id, str(interaction.user), -xp_difference)
+        else:
+            if amount <= current_highest:
+                await interaction.response.send_message(f"Your bid must be higher than the current bid of {current_highest:,} XP!", ephemeral=True)
+                return
+            
+            if user_xp < amount:
+                await interaction.response.send_message(f"Not enough XP! You have {user_xp:,} XP but bid {amount:,} XP.", ephemeral=True)
+                return
+            
+            if previous_bidder:
+                firebase_manager.add_xp(int(previous_bidder), "Auction Refund", current_highest)
+                
+                try:
+                    prev_user = await self.bot.fetch_user(int(previous_bidder))
+                    refund_embed = discord.Embed(
+                        title="Bid Refunded",
+                        description=f"Your bid of **{current_highest:,} XP** was outbid on auction `{auction_id}`.",
+                        color=discord.Color.orange()
+                    )
+                    await prev_user.send(embed=refund_embed)
+                except:
+                    pass
+            
+            firebase_manager.add_xp(interaction.user.id, str(interaction.user), -amount)
         
-        firebase_manager.add_xp(ctx.author.id, str(ctx.author), -amount)
-        
-        firebase_manager.update_auction_bid(auction_id, ctx.author.id, amount)
+        firebase_manager.update_auction_bid(auction_id, interaction.user.id, amount)
         
         auction_channel = self.bot.get_channel(bot_config.AUCTION_CHANNEL_ID)
         if auction_channel:
@@ -281,7 +293,7 @@ class Auctions(commands.Cog):
                     )
                     updated_embed.add_field(name="Starting Bid", value=f"{starting_bid:,} XP", inline=True)
                     updated_embed.add_field(name="Current Bid", value=f"{amount:,} XP", inline=True)
-                    updated_embed.add_field(name="Highest Bidder", value=ctx.author.mention, inline=True)
+                    updated_embed.add_field(name="Highest Bidder", value=interaction.user.mention, inline=True)
                     updated_embed.add_field(name="Ends At", value=f"<t:{int(end_time.timestamp())}:R>", inline=False)
                     updated_embed.set_footer(text=f"Use /bid {auction_id} <amount> to place a bid!")
                     
@@ -291,17 +303,20 @@ class Auctions(commands.Cog):
                 except Exception as e:
                     print(f"Error updating auction message: {e}")
         
-        await ctx.send(f"✅ Bid placed successfully! Your XP has been locked.", ephemeral=True)
+        if is_own_bid:
+            await interaction.response.send_message(f"Bid updated successfully! You increased your bid to {amount:,} XP.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"Bid placed successfully!", ephemeral=True)
 
-    @commands.hybrid_command(name="auctions", description="View all active auctions")
-    async def view_auctions(self, ctx):
-        if ctx.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+    @app_commands.command(name="auctions", description="View all active auctions")
+    async def view_auctions(self, interaction: discord.Interaction):
+        if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
         auctions = firebase_manager.get_active_auctions()
         
         if not auctions:
-            await ctx.send("No active auctions at the moment!", ephemeral=True)
+            await interaction.response.send_message("No active auctions at the moment!", ephemeral=True)
             return
         
         embed = discord.Embed(
@@ -329,18 +344,18 @@ class Auctions(commands.Cog):
                 inline=False
             )
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @commands.hybrid_command(name="cancelauction", description="Cancel an active auction (Auctioneer only)")
+    @app_commands.command(name="cancelauction", description="Cancel an active auction (Auctioneer only)")
     @app_commands.describe(auction_id="The auction ID to cancel")
-    async def cancel_auction(self, ctx, auction_id: str):
-        if not self.has_auctioneer_role(ctx.author):
-            await ctx.send("You don't have permission to cancel auctions!", ephemeral=True)
+    async def cancel_auction(self, interaction: discord.Interaction, auction_id: str):
+        if not self.has_auctioneer_role(interaction.user):
+            await interaction.response.send_message("You don't have permission to cancel auctions!", ephemeral=True)
             return
         
         auction = firebase_manager.get_auction(auction_id)
         if not auction:
-            await ctx.send("Auction not found!", ephemeral=True)
+            await interaction.response.send_message("Auction not found!", ephemeral=True)
             return
         
         bidder_id = auction.get('highestBidder')
@@ -366,7 +381,7 @@ class Auctions(commands.Cog):
         
         embed = discord.Embed(
             title="Auction Cancelled",
-            description=f"The auction for **{item_info['name']}** has been cancelled by {ctx.author.mention}.",
+            description=f"The auction for **{item_info['name']}** has been cancelled by {interaction.user.mention}.",
             color=discord.Color.red()
         )
         
@@ -374,7 +389,7 @@ class Auctions(commands.Cog):
         if auction_channel:
             await auction_channel.send(embed=embed)
         
-        await ctx.send("✅ Auction cancelled successfully!", ephemeral=True)
+        await interaction.response.send_message("Auction cancelled successfully!", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Auctions(bot))

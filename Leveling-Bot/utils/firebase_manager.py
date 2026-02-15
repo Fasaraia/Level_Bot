@@ -371,8 +371,9 @@ class FirebaseManager:
     #       AUCTION STUFF         #
     #=============================#
 
-    def create_auction(self, item_type, starting_bid, duration_hours, started_by, started_by_name):
-        auction_id = started_by_name.lower().replace(' ', '_')
+    def create_auction(self, item_type, starting_bid, duration_hours, started_by):
+        import uuid
+        auction_id = str(uuid.uuid4())[:4]
         
         auction_ref = self.db_ref.child('auctions').child(auction_id)
         end_time = datetime.now() + timedelta(hours=duration_hours)
@@ -388,7 +389,6 @@ class FirebaseManager:
             'startedBy': str(started_by),
             'active': True
         })
-        
         return auction_id
 
     def get_auction(self, auction_id):

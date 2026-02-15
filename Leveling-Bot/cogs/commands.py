@@ -318,10 +318,10 @@ class Commands(commands.Cog):
     #        Admin Commands      #
     #============================#
     
-    @commands.hybrid_command(name="addxp", description="Add XP to a user")
+    @app_commands.command(name="addxp", description="Add XP to a user")
     @app_commands.describe(user="The user to give XP to", amount="Amount of XP to add")
-    async def addxp(self, ctx, user: discord.Member, amount: int):
-        if not self.has_admin_role(ctx.author):
+    async def addxp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        if not self.has_admin_role(interaction.user):
             return
 
         result = firebase_manager.add_xp(user.id, str(user), amount)
@@ -334,12 +334,12 @@ class Commands(commands.Cog):
         embed.add_field(name="New Level", value=result['new_level'], inline=True)
         embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @commands.hybrid_command(name="removexp", description="Remove XP from a user")
+    @app_commands.command(name="removexp", description="Remove XP from a user")
     @app_commands.describe(user="The user to remove XP from", amount="Amount of XP to remove")
-    async def removexp(self, ctx, user: discord.Member, amount: int):
-        if not self.has_admin_role(ctx.author):
+    async def removexp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        if not self.has_admin_role(interaction.user):
             return
         
         result = firebase_manager.add_xp(user.id, str(user), -amount)
@@ -352,18 +352,18 @@ class Commands(commands.Cog):
         embed.add_field(name="New Level", value=result['new_level'], inline=True)
         embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
     
-    @commands.hybrid_command(name="reset", description="Reset a user's XP and progress")
+    @app_commands.command(name="reset", description="Reset a user's XP and progress")
     @app_commands.describe(user="The user to reset")
-    async def reset(self, ctx, user: discord.Member):
-        if not self.has_admin_role(ctx.author):
-            await ctx.send("You don't have permission to use this command!", ephemeral=True)
+    async def reset(self, interaction: discord.Interaction, user: discord.Member):
+        if not self.has_admin_role(interaction.user):
+            await interaction.response.send_message("You don't have permission to use this command!", ephemeral=True)
             return
         
         firebase_manager.reset_user(user.id)
         
-        await ctx.send(f"Reset {user.mention}'s XP and progress!")
+        await interaction.response.send_message(f"Reset {user.mention}'s XP and progress!")
 
 async def setup(bot):
     await bot.add_cog(Commands(bot))
