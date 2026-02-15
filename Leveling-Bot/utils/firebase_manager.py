@@ -47,18 +47,6 @@ class FirebaseManager:
             return True
         return False
     
-    def calculate_xp_for_level(self, level):
-        """XP required FOR this specific level (12.25 * level^2)"""
-        return math.floor(12.25 * (level ** 2))
-    
-    def calculate_level_from_xp(self, total_xp):
-        """Calculate level from total XP using formula: total_xp = 12.25 * level^2"""
-        if total_xp <= 0:
-            return 0
-        # Solve for level: level = sqrt(total_xp / 12.25)
-        level = math.floor(math.sqrt(total_xp / 12.25))
-        return level
-    
     def _create_default_user(self, user_id):
         return {
             'userId': str(user_id),
@@ -84,9 +72,25 @@ class FirebaseManager:
                 'small_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
                 'medium_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
                 'large_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
-                'custom_role_pass': {'amount': 0, 'active': 0, 'timeActivated': None}
+                'custom_role_pass': {'amount': 0, 'timeActivated': None, 'roleId': None}
             }
         }
+    
+    def calculate_xp_for_level(self, level):
+        return math.floor(12.25 * (level ** 2))
+    
+    def calculate_level_from_xp(self, total_xp):
+        if total_xp <= 0:
+            return 0
+        level = math.floor(math.sqrt(total_xp / 12.25))
+        return level
+    
+    def get_xp_for_next_level(self, current_level):
+        return self.calculate_xp_for_level(current_level + 1)
+    
+    def get_xp_in_current_level(self, total_xp, current_level):
+        xp_at_level_start = self.calculate_xp_for_level(current_level)
+        return total_xp - xp_at_level_start
     
     def get_user_data(self, user_id):
         user_ref = self.db_ref.child('users').child(str(user_id))
@@ -107,11 +111,9 @@ class FirebaseManager:
         old_level = user_data['level']
         new_current_xp = user_data['currentXP'] + xp_amount
         
-        # Only add to totalXP if gaining XP (positive), not when spending (negative)
         if xp_amount > 0:
             new_total_xp = user_data['totalXP'] + xp_amount
         else:
-            # When spending/losing XP, don't affect totalXP
             new_total_xp = user_data['totalXP']
         
         new_level = self.calculate_level_from_xp(new_total_xp)
@@ -136,6 +138,36 @@ class FirebaseManager:
             'current_xp': new_current_xp,
             'total_xp': new_total_xp
         }
+    
+    def reset_user(self, user_id):
+        user_ref = self.db_ref.child('users').child(str(user_id))
+        user_ref.update({
+            'userId': str(user_id),
+            'lastMessageTime': None,
+            'level': 0,
+            'messageCount': 0,
+            'currentXP': 0,
+            'totalXP': 0,
+            'roles': {
+                'Red': False,
+                'Orange': False,
+                'Teal': False,
+                'Blue': False,
+                'Purple': False,
+                'Black': False,
+                'Custom Role 1': False,
+                'Custom Role 2': False,
+                'Special Role 1': False,
+                'Special Role 2': False,
+            },
+            'items': {
+                'tiny_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'small_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'medium_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'large_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
+                'custom_role_pass': {'amount': 0, 'timeActivated': None, 'roleId': None}
+            }
+        })
     
     def get_leaderboard(self, limit=10):
         users_ref = self.db_ref.child('users')
@@ -167,46 +199,25 @@ class FirebaseManager:
         higher_users = sum(1 for uid, data in all_users.items() if data.get('totalXP', 0) > user_xp)
         return higher_users + 1
     
-    def get_xp_for_next_level(self, current_level):
-        """Get XP required FOR the next level"""
-        return self.calculate_xp_for_level(current_level + 1)
-    
-    def get_xp_in_current_level(self, total_xp, current_level):
-        """Get how much XP the user has earned in their current level"""
-        # XP at the start of current level
-        xp_at_level_start = self.calculate_xp_for_level(current_level)
-        # XP earned beyond that
-        return total_xp - xp_at_level_start
-    
-    def reset_user(self, user_id):
-        user_ref = self.db_ref.child('users').child(str(user_id))
-        user_ref.update({
-            'userId': str(user_id),
-            'lastMessageTime': None,
-            'level': 0,
-            'messageCount': 0,
-            'currentXP': 0,
-            'totalXP': 0,
-            'roles': {
-                'Red': False,
-                'Orange': False,
-                'Teal': False,
-                'Blue': False,
-                'Purple': False,
-                'Black': False,
-                'Custom Role 1': False,
-                'Custom Role 2': False,
-                'Special Role 1': False,
-                'Special Role 2': False,
-            },
-            'items': {
-                'tiny_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
-                'small_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
-                'medium_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
-                'large_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
-                'custom_role_pass': {'amount': 0, 'active': 0, 'timeActivated': None}
-            }
-        })
+    def get_weekly_leaderboard(self, limit=10):
+        users_ref = self.db_ref.child('users')
+        all_users = users_ref.get()
+        
+        if not all_users:
+            return []
+        
+        weekly_data = []
+        
+        for user_id, user_data in all_users.items():
+            weekly_data.append({
+                'userId': user_id,
+                'username': user_data.get('lastUsername', 'Unknown'),
+                'messageCount': user_data.get('messageCount', 0)
+            })
+        
+        weekly_data.sort(key=lambda x: x['messageCount'], reverse=True)
+        
+        return weekly_data[:limit]
     
     def set_user_role(self, user_id, role_name, value=True):
         user_ref = self.db_ref.child('users').child(str(user_id)).child('roles')
@@ -259,27 +270,6 @@ class FirebaseManager:
         
         return active_boosters
     
-    def check_booster_expiry(self, user_id, booster_name, duration_minutes):
-        items = self.get_user_items(user_id)
-        booster = items.get(booster_name, {})
-        
-        if booster.get('active', 0) == 0:
-            return False
-        
-        time_activated = booster.get('timeActivated')
-        if not time_activated:
-            return False
-        
-        try:
-            activated_time = datetime.fromisoformat(time_activated)
-            current_time = datetime.now()
-            time_diff = (current_time - activated_time).total_seconds() / 60
-            
-            return time_diff >= duration_minutes
-        except Exception as e:
-            print(f"Error checking booster expiry: {e}")
-            return False
-    
     def get_all_active_boosters_all_users(self):
         all_users_ref = self.db_ref.child('users')
         all_users = all_users_ref.get()
@@ -301,24 +291,53 @@ class FirebaseManager:
         
         return active_boosters_map
     
-    def get_weekly_leaderboard(self, limit=10):
+    def check_booster_expiry(self, user_id, booster_name, duration_minutes):
+        items = self.get_user_items(user_id)
+        booster = items.get(booster_name, {})
+        
+        if booster.get('active', 0) == 0:
+            return False
+        
+        time_activated = booster.get('timeActivated')
+        if not time_activated:
+            return False
+        
+        try:
+            activated_time = datetime.fromisoformat(time_activated)
+            current_time = datetime.now()
+            time_diff = (current_time - activated_time).total_seconds() / 60
+            
+            return time_diff >= duration_minutes
+        except Exception as e:
+            print(f"Error checking booster expiry: {e}")
+            return False
+    
+    def set_custom_role_id(self, user_id, role_id):
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child('custom_role_pass')
+        user_ref.update({'roleId': role_id})
+        print(f"Stored custom role ID {role_id} for user {user_id}")
+
+    def get_all_users_with_custom_roles(self):
         users_ref = self.db_ref.child('users')
-        all_users = users_ref.get()
+        all_users = users_ref.get() or {}
         
-        if not all_users:
-            return []
-        
-        weekly_data = []
+        users_with_crp = {}
         
         for user_id, user_data in all_users.items():
-            weekly_data.append({
-                'userId': user_id,
-                'username': user_data.get('lastUsername', 'Unknown'),
-                'messageCount': user_data.get('messageCount', 0)
-            })
+            items = user_data.get('items', {})
+            crp_data = items.get('custom_role_pass', {})
+            
+            if crp_data.get('timeActivated') and crp_data.get('roleId'):
+                users_with_crp[user_id] = crp_data
         
-        weekly_data.sort(key=lambda x: x['messageCount'], reverse=True)
-        
-        return weekly_data[:limit]
+        return users_with_crp
+
+    def clear_custom_role_pass(self, user_id):
+        user_ref = self.db_ref.child('users').child(str(user_id)).child('items').child('custom_role_pass')
+        user_ref.update({
+            'timeActivated': None,
+            'roleId': None
+        })
+        print(f"Cleared custom role pass data for user {user_id}")
 
 firebase_manager = FirebaseManager()
