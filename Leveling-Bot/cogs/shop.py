@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from utils import firebase_manager
 from config import config as bot_config
+from datetime import datetime, timedelta
 
 class Shop(commands.Cog):
     def __init__(self, bot):
@@ -31,7 +32,11 @@ class Shop(commands.Cog):
         }
         return role_map.get(role_input.lower().strip().replace(' ', ''), None)
     
-    def normalize_booster_name(self, booster_input):
+    def normalize_item_name(self, item_input):
+        """Normalize both booster and custom role pass names"""
+        item_input_clean = item_input.lower().strip()
+        
+        # Check boosters first
         booster_map = {
             'tiny_booster': 'tiny_booster',
             'tiny': 'tiny_booster',
@@ -46,7 +51,16 @@ class Shop(commands.Cog):
             'large': 'large_booster',
             'booster4': 'large_booster',
         }
-        return booster_map.get(booster_input.lower().strip(), None)
+        
+        if item_input_clean in booster_map:
+            return ('booster', booster_map[item_input_clean])
+        
+        # Check custom role pass
+        crp_aliases = ['custom_role_pass', 'customrolepass', 'crp', 'custompass', 'rolepass', 'custom roll pass']
+        if item_input_clean in crp_aliases:
+            return ('custom_role_pass', 'custom_role_pass')
+        
+        return (None, None)
     
     def get_role_price(self, role_name):
         prices = {
@@ -99,7 +113,7 @@ class Shop(commands.Cog):
         user_xp = user_data['currentXP']
         
         embed = discord.Embed(
-            title="🛒 Shop",
+            title="Shop",
             description=f"Your XP: **{user_xp:,}**\n\nUse `/buy <item_name>` to purchase\nUse `/equip <role_name>` to equip roles\nUse `/use <booster>` to activate boosters",
             color=discord.Color.blue()
         )
@@ -130,12 +144,20 @@ class Shop(commands.Cog):
         
         # Special Roles
         special_roles = []
-        for role_name in ['Custom Role 1', 'Custom Role 2', 'Special Role 1', 'Special Role 2']:
+        for role_name in ['Custom Role 1', 'Custom Role 2']:
             db_key = self.get_db_role_key(role_name)
             owned = user_roles.get(db_key, False)
             price = self.get_role_price(role_name)
             status = "✅ Owned" if owned else f"{price:,} XP"
-            special_roles.append(f"**{role_name}** - {status}")
+            
+            discord_role_id = bot_config.SPECIAL_ROLES.get(role_name)
+            if discord_role_id:
+                discord_role = ctx.guild.get_role(discord_role_id)
+                if discord_role:
+                    special_roles.append(f"{discord_role.mention} **{role_name}** - {status}")
+                else:
+                    special_roles.append(f"**{role_name}** - {status}")
+            else: special_roles.append(f"**{role_name}** - {status}")
         
         embed.add_field(
             name="⭐ Special Roles",
@@ -177,6 +199,10 @@ class Shop(commands.Cog):
         user_xp = user_data['currentXP']
         
         db_key = self.get_db_role_key(role)
+
+        if role == 'Special Role 1' or role == 'Special Role 2':
+            await ctx.send(f"This special role is not available for purchase!", ephemeral=True)
+            return
         
         if user_roles.get(db_key, False):
             await ctx.send(f"You already own the **{role}** role!", ephemeral=True)
@@ -239,6 +265,7 @@ class Shop(commands.Cog):
             color=discord.Color.purple()
         )
         
+        # XP Boosters
         booster_list = []
         for booster_name in ['tiny_booster', 'small_booster', 'medium_booster', 'large_booster']:
             info = self.get_booster_info(booster_name)
@@ -251,21 +278,68 @@ class Shop(commands.Cog):
         
         embed.add_field(
             name="⚡ XP Boosters",
-            value="\n".join(booster_list) if booster_list else "No boosters",
+            value="\n".join(booster_list),
+            inline=False
+        )
+        
+        # Custom Role Pass
+        crp_data = user_items.get('custom_role_pass', {})
+        crp_amount = crp_data.get('amount', 0)
+        crp_time = crp_data.get('timeActivated')
+        
+        if crp_time:
+            try:
+                activated_time = datetime.fromisoformat(crp_time)
+                current_time = datetime.now()
+                
+                # Calculate time passed (in hours)
+                time_diff = current_time - activated_time
+                hours_passed = time_diff.total_seconds() / 3600
+                
+                # 30 day duration for custom role pass
+                duration_hours = 30 * 24  # 30 days
+                hours_remaining = duration_hours - hours_passed
+                
+                if hours_remaining > 0:
+                    days_remaining = int(hours_remaining // 24)
+                    hours_only = int(hours_remaining % 24)
+                    
+                    if days_remaining > 0:
+                        time_left = f"{days_remaining}d {hours_only}h remaining"
+                    else:
+                        time_left = f"{hours_only}h remaining"
+                    
+                    crp_status = f"Amount: {crp_amount} | {time_left}"
+                else:
+                    crp_status = f"Amount: {crp_amount} | Not activated / Expired"
+            except:
+                crp_status = f"Amount: {crp_amount}"
+        else:
+            crp_status = f"Amount: {crp_amount} | Not activated"
+        
+        embed.add_field(
+            name="🎨 Custom Role Pass",
+            value=f"**Custom Role Pass** - {crp_status}",
             inline=False
         )
         
         await ctx.send(embed=embed)
     
-    @commands.hybrid_command(name="use", description="Use an XP booster")
-    @app_commands.describe(booster="The booster to use (e.g., tiny, small, medium, large)")
-    async def use_booster(self, ctx, booster: str):
-        booster = self.normalize_booster_name(booster)
+    @commands.hybrid_command(name="use", description="Use an item (booster or custom role pass)")
+    @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, crp)")
+    async def use_item(self, ctx, item: str):
+        item_type, item_name = self.normalize_item_name(item)
         
-        if not booster:
-            await ctx.send(f"Invalid booster! Use `/inventory` to see your boosters.", ephemeral=True)
+        if not item_type:
+            await ctx.send(f"Invalid item! Use `/inventory` to see your items.", ephemeral=True)
             return
         
+        if item_type == 'booster':
+            await self._use_booster(ctx, item_name)
+        elif item_type == 'custom_role_pass':
+            await self._use_custom_role_pass(ctx)
+
+    async def _use_booster(self, ctx, booster):
         user_data = firebase_manager.get_user_data(ctx.author.id)
         user_items = user_data.get('items', {})
         
@@ -286,16 +360,69 @@ class Shop(commands.Cog):
             info = self.get_booster_info(booster)
             embed = discord.Embed(
                 title="⚡ Booster Activated!",
-                description=f"You activated **{info['name']}**!\n\n**Multiplier:** {info['multiplier']}\n**Duration:** 7 days",
+                description=f"You activated **{info['name']}**!\n\n**Multiplier:** {info['multiplier']}\n**Duration:** 3 days",
                 color=discord.Color.gold()
             )
             embed.set_footer(text="You'll receive a DM when it expires!")
             await ctx.send(embed=embed)
         else:
             await ctx.send(f"Failed to use booster. Please try again.", ephemeral=True)
-    
+
+    async def _use_custom_role_pass(self, ctx):
+        user_data = firebase_manager.get_user_data(ctx.author.id)
+        user_items = user_data.get('items', {})
+        
+        crp_data = user_items.get('custom_role_pass', {})
+        crp_amount = crp_data.get('amount', 0)
+        crp_time = crp_data.get('timeActivated')
+        
+        # Check if user has any custom role passes
+        if crp_amount <= 0:
+            await ctx.send("You don't have any **Custom Role Passes**!", ephemeral=True)
+            return
+        
+        # Check if there's already an active pass
+        if crp_time:
+            try:
+                activated_time = datetime.fromisoformat(crp_time)
+                current_time = datetime.now()
+                time_diff = current_time - activated_time
+                hours_passed = time_diff.total_seconds() / 3600
+                duration_hours = 30 * 24  # 30 days
+                
+                if hours_passed < duration_hours:
+                    hours_remaining = duration_hours - hours_passed
+                    days_remaining = int(hours_remaining // 24)
+                    hours_only = int(hours_remaining % 24)
+                    
+                    await ctx.send(
+                        f"You already have an active **Custom Role Pass**!\n"
+                        f"Time remaining: {days_remaining}d {hours_only}h",
+                        ephemeral=True
+                    )
+                    return
+            except:
+                pass
+        
+        # Use the custom role pass
+        user_ref = firebase_manager.db_ref.child('users').child(str(ctx.author.id)).child('items').child('custom_role_pass')
+        user_ref.update({
+            'amount': crp_amount - 1,
+            'timeActivated': datetime.now().isoformat()
+        })
+        
+        embed = discord.Embed(
+            title="✅ Custom Role Pass Activated!",
+            description=f"You activated a **Custom Role Pass**!\n\n**Duration:** 30 days\n**Remaining passes:** {crp_amount - 1}",
+            color=discord.Color.gold()
+        )
+        embed.set_footer(text="Contact an admin to create your custom role!")
+        
+        await ctx.send(embed=embed)
+
+
     @commands.hybrid_command(name="equip", description="Equip an owned role")
-    @app_commands.describe(role="The role to equip (e.g., Red, Blue, Custom1, Special1)")
+    @app_commands.describe(role="The role to equip")
     async def equip(self, ctx, role: str):
         role = self.normalize_role_name(role)
         
