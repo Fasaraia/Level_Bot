@@ -62,7 +62,7 @@ class FirebaseManager:
             'lastMessageTime': None,
             'level': 0,
             'messageCount': 0,
-            'currentXP': 0,
+            'coins': 0,
             'totalXP': 0,
             'roles': {
                 'Red': False,
@@ -71,10 +71,10 @@ class FirebaseManager:
                 'Blue': False,
                 'Purple': False,
                 'Black': False,
+                'XP Boost 5%': False,
+                'XP Boost 10%': False,
                 'Custom Role 1': False,
                 'Custom Role 2': False,
-                'Special Role 1': False,
-                'Special Role 2': False,
             },
             'items': {
                 'tiny_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
@@ -186,7 +186,7 @@ class FirebaseManager:
         user_data = self.get_user_data(user_id)
         
         old_level = user_data['level']
-        new_current_xp = user_data['currentXP'] + xp_amount
+        new_current_coins = user_data['coins'] + xp_amount
         
         if xp_amount > 0:
             new_total_xp = user_data['totalXP'] + xp_amount
@@ -197,7 +197,7 @@ class FirebaseManager:
         
         user_ref = self.db_ref.child('users').child(str(user_id))
         user_ref.update({
-            'currentXP': new_current_xp,
+            'coins': new_current_coins,
             'totalXP': new_total_xp,
             'level': new_level,
             'messageCount': user_data['messageCount'],
@@ -212,7 +212,7 @@ class FirebaseManager:
             'old_level': old_level,
             'new_level': new_level,
             'xp_gain': xp_amount,
-            'current_xp': new_current_xp,
+            'current_xp': new_current_coins,
             'total_xp': new_total_xp
         }
     
@@ -223,7 +223,7 @@ class FirebaseManager:
             'lastMessageTime': None,
             'level': 0,
             'messageCount': 0,
-            'currentXP': 0,
+            'coins': 0,
             'totalXP': 0,
             'roles': {
                 'Red': False,
@@ -234,8 +234,8 @@ class FirebaseManager:
                 'Black': False,
                 'Custom Role 1': False,
                 'Custom Role 2': False,
-                'Special Role 1': False,
-                'Special Role 2': False,
+                'XP Boost 5%': False,
+                'XP Boost 10%': False,
             },
             'items': {
                 'tiny_booster': {'amount': 0, 'active': 0, 'timeActivated': None},
