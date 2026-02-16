@@ -51,7 +51,7 @@ class Commands(commands.Cog):
         
         current_level = user_data['level']
         total_xp = user_data['totalXP']
-        user_xp = user_data['currentXP'] 
+        user_coins = user_data['coins'] 
         
         # Calculate XP thresholds
         xp_for_current_level = firebase_manager.calculate_xp_for_level(current_level)
@@ -102,7 +102,7 @@ class Commands(commands.Cog):
         draw.text((bar_x + bar_width // 2, bar_y + bar_height // 2), xp_text, 
                  fill=(255, 255, 255, 255), font=label_font, anchor="mm")
         
-        draw.text((200, 230), f"Current XP: {user_xp:,.2f}", fill=(153, 170, 181, 255), font=label_font)
+        draw.text((200, 230), f"Current Coins: {user_coins:,.2f}", fill=(153, 170, 181, 255), font=label_font)
         draw.text((400, 230), f"Weekly Messages: {user_data['messageCount']:,}", fill=(153, 170, 181, 255), font=label_font)
         
         return card
@@ -319,41 +319,52 @@ class Commands(commands.Cog):
     #        Admin Commands      #
     #============================#
     
-    @app_commands.command(name="addxp", description="Add XP to a user")
-    @app_commands.describe(user="The user to give XP to", amount="Amount of XP to add")
-    async def addxp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
-        if not self.has_admin_role(interaction.user):
-            return
+# In commands.py, update the addxp and removexp commands:
 
-        result = firebase_manager.add_xp(user.id, str(user), amount)
-        
-        embed = discord.Embed(
-            title="XP Added",
-            description=f"Added **{amount} XP** to {user.mention}!",
-            color=discord.Color.green()
-        )
-        embed.add_field(name="New Level", value=result['new_level'], inline=True)
-        embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
-        
-        await interaction.response.send_message(embed=embed)
+@app_commands.command(name="addxp", description="Add XP to a user")
+@app_commands.describe(user="The user to give XP to", amount="Amount of XP to add")
+async def addxp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+    if not self.has_admin_role(interaction.user):
+        return
+
+    result = firebase_manager.add_xp(user.id, str(user), amount)
     
-    @app_commands.command(name="removexp", description="Remove XP from a user")
-    @app_commands.describe(user="The user to remove XP from", amount="Amount of XP to remove")
-    async def removexp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
-        if not self.has_admin_role(interaction.user):
-            return
-        
-        result = firebase_manager.add_xp(user.id, str(user), -amount)
-        
-        embed = discord.Embed(
-            title="XP Removed",
-            description=f"Removed **{amount} XP** from {user.mention}!",
-            color=discord.Color.red()
-        )
-        embed.add_field(name="New Level", value=result['new_level'], inline=True)
-        embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
-        
-        await interaction.response.send_message(embed=embed)
+    # Update level roles
+    leveling_cog = self.bot.get_cog('Leveling')
+    if leveling_cog:
+        await leveling_cog.update_level_roles(user, result['new_level'])
+    
+    embed = discord.Embed(
+        title="XP Added",
+        description=f"Added **{amount} XP** to {user.mention}!",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="New Level", value=result['new_level'], inline=True)
+    embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
+    
+    await interaction.response.send_message(embed=embed)
+
+@app_commands.command(name="removexp", description="Remove XP from a user")
+@app_commands.describe(user="The user to remove XP from", amount="Amount of XP to remove")
+async def removexp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+    if not self.has_admin_role(interaction.user):
+        return
+    
+    result = firebase_manager.add_xp(user.id, str(user), -amount)
+    
+    leveling_cog = self.bot.get_cog('Leveling')
+    if leveling_cog:
+        await leveling_cog.update_level_roles(user, result['new_level'])
+    
+    embed = discord.Embed(
+        title="XP Removed",
+        description=f"Removed **{amount} XP** from {user.mention}!",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="New Level", value=result['new_level'], inline=True)
+    embed.add_field(name="Total XP", value=f"{result['total_xp']:,}", inline=True)
+    
+    await interaction.response.send_message(embed=embed)
     
     @app_commands.command(name="reset", description="Reset a user's XP and progress")
     @app_commands.describe(user="The user to reset")

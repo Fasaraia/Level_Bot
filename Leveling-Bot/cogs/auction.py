@@ -24,14 +24,14 @@ class Auctions(commands.Cog):
     
     def get_auction_item_info(self, item_type):
         items = {
-            'special_role_1': {
-                'name': 'Special Role 1',
-                'description': 'Exclusive special role with 5% XP bonus',
+            'XP Boost 5%': {
+                'name': 'XP Boost 5%',
+                'description': 'Exclusive 5% XP bonus for 30 days',
                 'starting_bid': 10000
             },
-            'special_role_2': {
-                'name': 'Special Role 2',
-                'description': 'Exclusive special role with 10% XP bonus',
+            'XP Boost 10%': {
+                'name': 'XP Boost 10%',
+                'description': 'Exclusive 10% XP bonus for 30 days',
                 'starting_bid': 10000
             },
             'custom_role_pass': {
@@ -69,12 +69,12 @@ class Auctions(commands.Cog):
             
             winner = await self.bot.fetch_user(int(winner_id))
             
-            if item_type == 'special_role_1':
-                firebase_manager.set_user_role(winner_id, 'Special Role 1', True)
-                item_name = 'Special Role 1'
-            elif item_type == 'special_role_2':
-                firebase_manager.set_user_role(winner_id, 'Special Role 2', True)
-                item_name = 'Special Role 2'
+            if item_type == 'XP Boost 5%':
+                firebase_manager.set_user_role(winner_id, 'XP Boost 5%', True)
+                item_name = 'XP Boost 5%'
+            elif item_type == 'XP Boost 10%':
+                firebase_manager.set_user_role(winner_id, 'XP Boost 10%', True)
+                item_name = 'XP Boost 10%'
             elif item_type == 'custom_role_pass':
                 firebase_manager.add_item(winner_id, 'custom_role_pass', 1)
                 item_name = 'Custom Role Pass'
@@ -87,7 +87,7 @@ class Auctions(commands.Cog):
                 description=f"{winner.mention} has won the auction for **{item_name}**!",
                 color=discord.Color.gold()
             )
-            embed.add_field(name="Winning Bid", value=f"{winning_bid:,} XP", inline=True)
+            embed.add_field(name="Winning Bid", value=f"{winning_bid:,} Coins", inline=True)
             embed.add_field(name="Winner", value=winner.mention, inline=True)
             
             if auction_channel:
@@ -99,10 +99,10 @@ class Auctions(commands.Cog):
                     description=f"You won the auction for **{item_name}**!",
                     color=discord.Color.gold()
                 )
-                dm_embed.add_field(name="Your Winning Bid", value=f"{winning_bid:,} XP", inline=False)
+                dm_embed.add_field(name="Your Winning Bid", value=f"{winning_bid:,} Coins", inline=False)
                 
-                if item_type in ['special_role_1', 'special_role_2']:
-                    dm_embed.add_field(name="Next Steps", value="Use `/equip` to equip your new role!", inline=False)
+                if item_type in ['XP Boost 5%', 'XP Boost 10%']:
+                    dm_embed.add_field(name="Next Steps", value="Use `/use` to activate your XP boost!", inline=False)
                 elif item_type == 'custom_role_pass':
                     dm_embed.add_field(name="Next Steps", value="Use `/use customrole` to activate it, then `/customrole` to create your role!", inline=False)
                 elif item_type == 'large_booster':
@@ -159,13 +159,13 @@ class Auctions(commands.Cog):
 
     @app_commands.command(name="startauction", description="Start an auction (Auctioneer only)")
     @app_commands.describe(
-        item="Item to auction (special1, special2, customrole, largebooster)",
+        item="Item to auction (XP Boost 5%, XP Boost 10%, customrole, largebooster)",
         duration="Duration in hours (1-72)",
         starting_bid="Starting bid amount (optional)"
     )
     async def start_auction(
         self, interaction: discord.Interaction, 
-        item: Literal["special_role_1", "special_role_2", "custom_role_pass", "large_booster"], 
+        item: Literal["XP Boost 5%", "XP Boost 10%", "custom_role_pass", "large_booster"], 
         duration: int, starting_bid: int = None
         ):
 
@@ -174,23 +174,15 @@ class Auctions(commands.Cog):
             return
         
         item_map = {
-            'special1': 'special_role_1',
-            'specialrole1': 'special_role_1',
-            'special_role_1': 'special_role_1',
-            'special2': 'special_role_2',
-            'specialrole2': 'special_role_2',
-            'special_role_2': 'special_role_2',
-            'customrole': 'custom_role_pass',
-            'customrolepass': 'custom_role_pass',
-            'crp': 'custom_role_pass',
-            'largebooster': 'large_booster',
-            'large': 'large_booster',
-            'booster4': 'large_booster'
+            'xp_boost_5%': 'XP Boost 5%',
+            'xp_boost_10%': 'XP Boost 10%',
+            'custom_role_pass': 'custom_role_pass',
+            'large_booster': 'large_booster'
         }
         
         item_type = item_map.get(item.lower())
         if not item_type:
-            await interaction.response.send_message("Invalid item! Use: `special1`, `special2`, `customrole`, or `largebooster`", ephemeral=True)
+            await interaction.response.send_message("Invalid item! Use: `XP Boost 5%`, `XP Boost 10%`, `custom_role_pass`, or `large_booster`", ephemeral=True)
             return
         
         if duration < 1 or duration > 72:
@@ -202,7 +194,7 @@ class Auctions(commands.Cog):
             starting_bid = item_info['starting_bid']
         
         if starting_bid < 100:
-            await interaction.response.send_message("Starting bid must be at least 100 XP!", ephemeral=True)
+            await interaction.response.send_message("Starting bid must be at least 100 Coins!", ephemeral=True)
             return
         
         end_time = datetime.now() + timedelta(hours=duration)
@@ -219,8 +211,8 @@ class Auctions(commands.Cog):
             description=item_info['description'],
             color=discord.Color.blue()
         )
-        embed.add_field(name="Starting Bid", value=f"{starting_bid:,} XP", inline=True)
-        embed.add_field(name="Current Bid", value=f"{starting_bid:,} XP", inline=True)
+        embed.add_field(name="Starting Bid", value=f"{starting_bid:,} Coins", inline=True)
+        embed.add_field(name="Current Bid", value=f"{starting_bid:,} Coins", inline=True)
         embed.add_field(name="Highest Bidder", value="No bids yet", inline=True)
         embed.add_field(name="Ends At", value=f"<t:{int(end_time.timestamp())}:R>", inline=False)
         embed.set_footer(text=f"Use /bid {auction_id} <amount> to place a bid!")
@@ -254,7 +246,7 @@ class Auctions(commands.Cog):
                 bidder = await self.bot.fetch_user(int(bidder_id))
                 refund_embed = discord.Embed(
                     title="Auction Cancelled",
-                    description=f"The auction you bid on has been cancelled. Your bid of **{bid_amount:,} XP** has been refunded.",
+                    description=f"The auction you bid on has been cancelled. Your bid of **{bid_amount:,} Coins** has been refunded.",
                     color=discord.Color.orange()
                 )
                 await bidder.send(embed=refund_embed)
@@ -283,7 +275,7 @@ class Auctions(commands.Cog):
     @app_commands.command(name="bid", description="Place a bid on an active auction")
     @app_commands.describe(auction_id="The auction ID", amount="Your bid amount")
     async def bid(self, interaction: discord.Interaction, auction_id: str, amount: int):
-        if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+        if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID or interaction.channel.id == bot_config.AUCTIONEER_ROLE_IDS:
             return
         
         if self.has_admin_role(interaction.user):
@@ -295,37 +287,45 @@ class Auctions(commands.Cog):
             await interaction.response.send_message("Auction not found!", ephemeral=True)
             return
         
-        if amount < 100:
-            await interaction.response.send_message("Bid must be at least 100 XP!", ephemeral=True)
-            return
-        
         user_data = firebase_manager.get_user_data(interaction.user.id)
-        user_xp = user_data['currentXP']
+        user_coins = user_data['coins']
         
         current_highest = auction.get('highestBid', auction.get('startingBid', 0))
         previous_bidder = auction.get('highestBidder')
+
+        if amount < 100:
+            await interaction.response.send_message("Bid must be at least 100 Coins!", ephemeral=True)
+            return
         
+    
         is_own_bid = previous_bidder == str(interaction.user.id)
         
         if is_own_bid:
-            xp_difference = amount - current_highest
+            coins_difference = amount - current_highest
             
-            if xp_difference <= 0:
-                await interaction.response.send_message(f"Your new bid must be higher than your current bid of {current_highest:,} XP!", ephemeral=True)
+            if coins_difference <= 99:
+                await interaction.response.send_message(f"Your new bid must be at least 100 Coins higher than your current bid of {current_highest:,} Coins!", ephemeral=True)
                 return
             
-            if user_xp < xp_difference:
-                await interaction.response.send_message(f"Not enough XP! You need {xp_difference:,} more XP to increase your bid to {amount:,} XP.", ephemeral=True)
+            if user_coins < coins_difference:
+                await interaction.response.send_message(f"Not enough Coins! You need {coins_difference:,} more Coins to increase your bid to {amount:,} Coins.", ephemeral=True)
                 return
             
-            firebase_manager.add_xp(interaction.user.id, str(interaction.user), -xp_difference)
+            firebase_manager.add_xp(interaction.user.id, str(interaction.user), -coins_difference)
         else:
-            if amount <= current_highest:
-                await interaction.response.send_message(f"Your bid must be higher than the current bid of {current_highest:,} XP!", ephemeral=True)
-                return
+            if previous_bidder is None:
+                starting_bid = auction.get('startingBid', 0)
+                if amount < starting_bid:
+                    await interaction.response.send_message(f"Your bid must be at least the starting bid of {starting_bid:,} Coins!", ephemeral=True)
+                    return
+            else:
+                if amount <= current_highest:
+                    await interaction.response.send_message(f"Your bid must be higher than the current bid of {current_highest:,} Coins!", ephemeral=True)
+                    return
             
-            if user_xp < amount:
-                await interaction.response.send_message(f"Not enough XP! You have {user_xp:,} XP but bid {amount:,} XP.", ephemeral=True)
+            
+            if user_coins < amount:
+                await interaction.response.send_message(f"Not enough Coins! You have {user_coins:,} Coins but bid {amount:,} Coins.", ephemeral=True)
                 return
             
             if previous_bidder:
@@ -335,7 +335,7 @@ class Auctions(commands.Cog):
                     prev_user = await self.bot.fetch_user(int(previous_bidder))
                     refund_embed = discord.Embed(
                         title="Bid Refunded",
-                        description=f"Your bid of **{current_highest:,} XP** was outbid on auction `{auction_id}`.",
+                        description=f"Your bid of **{current_highest:,} Coins** was outbid on auction `{auction_id}`.",
                         color=discord.Color.orange()
                     )
                     await prev_user.send(embed=refund_embed)
@@ -359,12 +359,12 @@ class Auctions(commands.Cog):
                     starting_bid = auction.get('startingBid', 0)
                     
                     updated_embed = discord.Embed(
-                        title=f"🔨 Auction Started - {item_info['name']}",
+                        title=f"Auction Started - {item_info['name']}",
                         description=item_info['description'],
                         color=discord.Color.blue()
                     )
-                    updated_embed.add_field(name="Starting Bid", value=f"{starting_bid:,} XP", inline=True)
-                    updated_embed.add_field(name="Current Bid", value=f"{amount:,} XP", inline=True)
+                    updated_embed.add_field(name="Starting Bid", value=f"{starting_bid:,} Coins", inline=True)
+                    updated_embed.add_field(name="Current Bid", value=f"{amount:,} Coins", inline=True)
                     updated_embed.add_field(name="Highest Bidder", value=interaction.user.mention, inline=True)
                     updated_embed.add_field(name="Ends At", value=f"<t:{int(end_time.timestamp())}:R>", inline=False)
                     updated_embed.set_footer(text=f"Use /bid {auction_id} <amount> to place a bid!")
@@ -376,7 +376,7 @@ class Auctions(commands.Cog):
                     print(f"Error updating auction message: {e}")
         
         if is_own_bid:
-            await interaction.response.send_message(f"Bid updated successfully! You increased your bid to {amount:,} XP.", ephemeral=True)
+            await interaction.response.send_message(f"Bid updated successfully! You increased your bid to {amount:,} Coins.", ephemeral=True)
         else:
             await interaction.response.send_message(f"Bid placed successfully!", ephemeral=True)
 
@@ -412,7 +412,7 @@ class Auctions(commands.Cog):
             
             embed.add_field(
                 name=f"{item_info['name']} (ID: {auction_id})",
-                value=f"**Current Bid:** {current_bid:,} XP\n**Highest Bidder:** {bidder_text}\n**Ends:** <t:{int(end_time.timestamp())}:R>",
+                value=f"**Current Bid:** {current_bid:,} Coins\n**Highest Bidder:** {bidder_text}\n**Ends:** <t:{int(end_time.timestamp())}:R>",
                 inline=False
             )
         

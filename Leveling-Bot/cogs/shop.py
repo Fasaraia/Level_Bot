@@ -24,7 +24,8 @@ class Shop(commands.Cog):
             'black': 'Black',
             'customrole1': 'Custom Role 1',
             'customrole2': 'Custom Role 2',
-
+            'xpboost5%': 'XP Boost 5%', 
+            'xpboost10%': 'XP Boost 10%',
         }
         return role_map.get(role_input.lower().strip().replace(' ', ''), None)
     
@@ -42,7 +43,7 @@ class Shop(commands.Cog):
         if item_input_clean in booster_map:
             return ('booster', booster_map[item_input_clean])
         
-        if item_input_clean == 'custom roll pass':
+        if item_input_clean == 'custom role pass':
             return ('custom_role_pass', 'custom_role_pass')
         
         return (None, None)
@@ -55,10 +56,11 @@ class Shop(commands.Cog):
             'Blue': 1000,
             'Purple': 1000,
             'Black': 1000,
-            'Custom Role 1': 5000,
-            'Custom Role 2': 5000,
-            'Special Role 1': 7500,
-            'Special Role 2': 7500,
+            'Custom Role 1': 100000,
+            'Custom Role 2': 100000,
+            'XP Boost 5%': 'Auction Limited',
+            'XP Boost 10%': 'Auction Limited',
+
         }
         return prices.get(role_name, 0)
     
@@ -67,10 +69,10 @@ class Shop(commands.Cog):
     
     def get_booster_info(self, booster_name):
         booster_data = {
-            'tiny_booster': {'name': 'Tiny Booster | 1.1x XP Booster', 'price': 1440, 'multiplier': '1.1x', 'multiplier_value': 1.1, 'duration': 4320},
-            'small_booster': {'name': 'Small Booster | 1.2x XP Booster', 'price': 2160, 'multiplier': '1.2x', 'multiplier_value': 1.2, 'duration': 4320},
-            'medium_booster': {'name': 'Medium Booster | 1.3x XP Booster', 'price': 3240, 'multiplier': '1.3x', 'multiplier_value': 1.3, 'duration': 4320},
-            'large_booster': {'name': 'Large Booster | 1.5x XP Booster', 'price': 4320, 'multiplier': '1.5x', 'multiplier_value': 1.5, 'duration': 4320},
+            'tiny_booster': {'name': 'Tiny Booster | XP Booster', 'price': 1440, 'multiplier': '1.1x', 'multiplier_value': 1.1, 'duration': 4320},
+            'small_booster': {'name': 'Small Booster | XP Booster', 'price': 2160, 'multiplier': '1.2x', 'multiplier_value': 1.2, 'duration': 4320},
+            'medium_booster': {'name': 'Medium Booster | XP Booster', 'price': 3240, 'multiplier': '1.3x', 'multiplier_value': 1.3, 'duration': 4320},
+            'large_booster': {'name': 'Large Booster | XP Booster', 'price': 4320, 'multiplier': '1.5x', 'multiplier_value': 1.5, 'duration': 4320},
         }
         return booster_data.get(booster_name, {})
     
@@ -85,8 +87,9 @@ class Shop(commands.Cog):
             'Black': 'Black',
             'Custom Role 1': 'Custom Role 1',
             'Custom Role 2': 'Custom Role 2',
-            'Special Role 1': 'Special Role 1',
-            'Special Role 2': 'Special Role 2',
+            'XP Boost 5%': 'XP Boost 5%',
+            'XP Boost 10%': 'XP Boost 10%',
+
         }
         return role_key_map.get(role_name, role_name)
     
@@ -97,12 +100,12 @@ class Shop(commands.Cog):
     async def _buy_role(self, interaction, role):
         user_data = firebase_manager.get_user_data(interaction.user.id)
         user_roles = user_data.get('roles', {})
-        user_xp = user_data['currentXP']
+        user_coins = user_data['coins']
         
         db_key = self.get_db_role_key(role)
 
-        if role == 'Special Role 1' or role == 'Special Role 2':
-            await interaction.response.send_message("This special role is not available for purchase!", ephemeral=True)
+        if role == 'XP Boost 10%' or role == 'XP Boost 5%':
+            await interaction.response.send_message("This role is not available for purchase!", ephemeral=True)
             return
         
         if user_roles.get(db_key, False):
@@ -111,8 +114,8 @@ class Shop(commands.Cog):
         
         price = self.get_role_price(role)
         
-        if user_xp < price:
-            await interaction.response.send_message(f"Not enough XP! You need **{price:,} XP** but only have **{user_xp:,} XP**.", ephemeral=True)
+        if user_coins < price:
+            await interaction.response.send_message(f"Not enough Coins! You need **{price:,} Coins** but only have **{user_coins:,} Coins**.", ephemeral=True)
             return
         
         firebase_manager.add_xp(interaction.user.id, str(interaction.user), -price)
@@ -120,10 +123,10 @@ class Shop(commands.Cog):
         
         embed = discord.Embed(
             title="Purchase Successful!",
-            description=f"You bought the **{role}** role for **{price:,} XP**!\n\nUse `/equip {role}` to equip it.",
+            description=f"You bought the **{role}** role for **{price:,} Coins**!\n\nUse `/equip {role}` to equip it.",
             color=discord.Color.green()
         )
-        embed.add_field(name="Remaining XP", value=f"{user_xp - price:,}", inline=True)
+        embed.add_field(name="Remaining Coins", value=f"{user_coins - price:,}", inline=True)
         
         await interaction.response.send_message(embed=embed)
     
@@ -133,13 +136,13 @@ class Shop(commands.Cog):
             return
         
         user_data = firebase_manager.get_user_data(interaction.user.id)
-        user_xp = user_data['currentXP']
+        user_coins = user_data['coins']
         
         info = self.get_booster_info(booster)
         price = info['price']
         
-        if user_xp < price:
-            await interaction.response.send_message(f"Not enough XP! You need **{price:,} XP** but only have **{user_xp:,} XP**.", ephemeral=True)
+        if user_coins < price:
+            await interaction.response.send_message(f"Not enough Coins! You need **{price:,} Coins** but only have **{user_coins:,} Coins**.", ephemeral=True)
             return
         
         firebase_manager.add_xp(interaction.user.id, str(interaction.user), -price)
@@ -147,10 +150,10 @@ class Shop(commands.Cog):
         
         embed = discord.Embed(
             title="Purchase Successful!",
-            description=f"You bought **{info['name']}** for **{price:,} XP**!\n\nUse `/use {booster}` to activate it.",
+            description=f"You bought **{info['name']}** for **{price:,} Coins**!\n\nUse `/use {booster}` to activate it.",
             color=discord.Color.green()
         )
-        embed.add_field(name="Remaining XP", value=f"{user_xp - price:,}", inline=True)
+        embed.add_field(name="Remaining Coins", value=f"{user_coins - price:,}", inline=True)
         embed.add_field(name="Duration", value="3 days", inline=True)
         
         await interaction.response.send_message(embed=embed)
@@ -242,26 +245,32 @@ class Shop(commands.Cog):
 
     @app_commands.command(name="shop", description="View the item shop")
     async def shop(self, interaction: discord.Interaction):
+        # Fix 1: Respond instead of silent return
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            await interaction.response.send_message(
+                "This command can only be used in the commands channel!", 
+                ephemeral=True
+            )
             return
         
         user_data = firebase_manager.get_user_data(interaction.user.id)
         user_roles = user_data.get('roles', {})
         user_items = user_data.get('items', {})
-        user_xp = user_data['currentXP']
+        user_coins = user_data['coins']
         
         embed = discord.Embed(
             title="Shop",
-            description=f"Your XP: **{user_xp:,}**\n\nUse `/buy <item_name>` to purchase\nUse `/equip <role_name>` to equip roles\nUse `/use <booster>` to activate boosters",
+            description=f"Your Coins: **{user_coins:,}**\n\nUse `/buy <item_name>` to purchase\nUse `/equip <role_name>` to equip roles\nUse `/use <booster>` to activate boosters",
             color=discord.Color.blue()
         )
         
+        # Color roles section (no changes needed)
         color_roles = []
         for role_name in ['Red', 'Orange', 'Teal', 'Blue', 'Purple', 'Black']:
             db_key = self.get_db_role_key(role_name)
             owned = user_roles.get(db_key, False)
             price = self.get_role_price(role_name)
-            status = "🟢 **Owned**" if owned else f"{price:,} XP"
+            status = "🟢 **Owned**" if owned else f"{price:,} Coins"
             
             discord_role_id = bot_config.COLOUR_ROLES.get(role_name)
             if discord_role_id:
@@ -280,11 +289,16 @@ class Shop(commands.Cog):
         )
         
         special_roles = []
-        for role_name in ['Custom Role 1', 'Custom Role 2']:
+        for role_name in ['Custom Role 1', 'Custom Role 2', 'XP Boost 5%', 'XP Boost 10%']:
             db_key = self.get_db_role_key(role_name)
             owned = user_roles.get(db_key, False)
             price = self.get_role_price(role_name)
-            status = "**🟢 Owned**" if owned else f"{price:,} XP"
+            
+            # Handle both numeric and string prices
+            if isinstance(price, str):
+                status = "**🟢 Owned**" if owned else price
+            else:
+                status = "**🟢 Owned**" if owned else f"{price:,} Coins"
             
             discord_role_id = bot_config.SPECIAL_ROLES.get(role_name)
             if discord_role_id:
@@ -302,23 +316,24 @@ class Shop(commands.Cog):
             inline=False
         )
         
+        # Boosters section (no changes needed)
         boosters = []
         for booster_name in ['tiny_booster', 'small_booster', 'medium_booster']:
             info = self.get_booster_info(booster_name)
             amount = user_items.get(booster_name, {}).get('amount', 0)
-            boosters.append(f"**{info['name']}** ({info['multiplier']}) - {info['price']:,} XP | Owned: {amount}")
+            boosters.append(f"**{info['name']}** ({info['multiplier']}) - {info['price']:,} Coins | Owned: {amount}")
         
         embed.add_field(
-            name="⚡ XP Boosters",
-            value="\n".join(boosters),
+            name="XP Boosters",
+            value=f"Boosters Last for 3 days\n" + "\n".join(boosters),
             inline=False
         )
         
         await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False))
     
     @app_commands.command(name="buy", description="Buy an item from the shop")
-    @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium)")
-    async def buy(self, interaction: discord.Interaction, item: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black", "Tiny Booster", "Small Booster", "Medium Booster"]):
+    @app_commands.describe(item="The item to buy")
+    async def buy(self, interaction: discord.Interaction, item: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black", "Custom Role 1", "Custom Role 2", "Tiny Booster", "Small Booster", "Medium Booster",]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
@@ -427,7 +442,7 @@ class Shop(commands.Cog):
             inline=False
         )
         
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="use", description="Use an item (booster or custom role pass)")
     @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, customrole)")
@@ -448,7 +463,7 @@ class Shop(commands.Cog):
 
     @app_commands.command(name="equip", description="Equip an owned role")
     @app_commands.describe(role="The role to equip")
-    async def equip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black"]):
+    async def equip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black", "Custom Role 1", "Custom Role 2", "XP Boost 5%", "XP Boost 10%"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
@@ -490,14 +505,14 @@ class Shop(commands.Cog):
                 description=f"You equipped the {discord_role.mention} role!\nTo unequip use `/unequip {role}`",
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False))
+            await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False), ephemeral=True)
         except Exception as e:
             print(f"Error adding Discord role: {e}")
             await interaction.response.send_message("Failed to equip role. Please message <@278365147167326208>", ephemeral=True)
 
     @app_commands.command(name="unequip", description="Unequip an owned role")
     @app_commands.describe(role="The role to unequip (e.g., Red, Blue...)")
-    async def unequip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black"]):
+    async def unequip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black", "Custom Role 1", "Custom Role 2", "XP Boost 5%", "XP Boost 10%"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
             
@@ -539,7 +554,7 @@ class Shop(commands.Cog):
                 description=f"You unequipped the {discord_role.mention} role!\nTo re-equip use `/equip {role}`",
                 color=discord.Color.green()
             )
-            await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False))
+            await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions(roles=False), ephemeral=True)
         except Exception as e:
             print(f"Error removing Discord role: {e}")
             await interaction.response.send_message("Failed to unequip role. Please message <@278365147167326208>", ephemeral=True)

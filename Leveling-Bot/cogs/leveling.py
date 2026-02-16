@@ -149,6 +149,56 @@ class Leveling(commands.Cog):
         active_booster_name = active_boosters[0]['name']
         return booster_multipliers.get(active_booster_name, 1.0)
     
+    async def update_level_roles(self, member, user_level):
+        """
+        Update level roles for a member based on their current level.
+        Adds all level roles they've earned (stacking).
+        """
+        if not hasattr(bot_config, 'LEVEL_ROLES'):
+            return
+        
+        roles_to_add = []
+        roles_to_remove = []
+        
+        # Get all level role IDs the user should have
+        earned_role_ids = set()
+        for level_requirement, role_id in bot_config.LEVEL_ROLES.items():
+            if user_level >= level_requirement:
+                earned_role_ids.add(role_id)
+        
+        # Check current level roles the user has
+        current_level_role_ids = set()
+        for role in member.roles:
+            if role.id in bot_config.LEVEL_ROLES.values():
+                current_level_role_ids.add(role.id)
+        
+        # Determine which roles to add and remove
+        for role_id in earned_role_ids:
+            if role_id not in current_level_role_ids:
+                role = member.guild.get_role(role_id)
+                if role:
+                    roles_to_add.append(role)
+        
+        for role_id in current_level_role_ids:
+            if role_id not in earned_role_ids:
+                role = member.guild.get_role(role_id)
+                if role:
+                    roles_to_remove.append(role)
+        
+        # Apply role changes
+        try:
+            if roles_to_add:
+                await member.add_roles(*roles_to_add, reason=f"Earned level roles (Level {user_level})")
+                print(f"Added {len(roles_to_add)} level role(s) to {member.name}")
+            
+            if roles_to_remove:
+                await member.remove_roles(*roles_to_remove, reason=f"Lost level roles (Level {user_level})")
+                print(f"Removed {len(roles_to_remove)} level role(s) from {member.name}")
+        except discord.Forbidden:
+            print(f"Missing permissions to manage roles for {member.name}")
+        except Exception as e:
+            print(f"Error updating level roles for {member.name}: {e}")
+    
     #============================#
     #  XP & Leveling Listerner   #
     #============================#
@@ -164,23 +214,30 @@ class Leveling(commands.Cog):
         base_xp = float(bot_config.XP_BASE)
         bonus_multiplier = 1.0
         
-        # Role bonus multiplier
+        # Role bonus multiplier - only take the HIGHEST bonus
+        role_bonuses = []
         for role in message.author.roles:
             if role.id in bot_config.XP_BONUS_ROLE:
-                bonus_multiplier += (bot_config.XP_BONUS_ROLE[role.id] / 100.0)
+                role_bonuses.append(bot_config.XP_BONUS_ROLE[role.id])
+        
+        if role_bonuses:
+            highest_bonus = max(role_bonuses)
+            bonus_multiplier += (highest_bonus / 100.0)
         
         # Booster multiplier
         booster_multiplier = self.calculate_booster_multiplier(message.author.id)
         
-        # Calculate total XP with all multipliers (keep as float)
         total_multiplier = bonus_multiplier * booster_multiplier
-        xp_gain = round(base_xp * total_multiplier, 2)  # Float with 2 decimals
+        xp_gain = round(base_xp * total_multiplier, 2)
         
         result = firebase_manager.add_xp(
             message.author.id,
             str(message.author),
             xp_gain
         )
+        
+        # Update level roles
+        await self.update_level_roles(message.author, result['new_level'])
         
         if result['leveled_up']:
             embed = discord.Embed(
