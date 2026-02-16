@@ -4,6 +4,7 @@ from discord import app_commands
 from utils import firebase_manager
 from config import config as bot_config
 from datetime import datetime, timedelta
+from typing import Literal
 import asyncio
 
 class Auctions(commands.Cog):
@@ -11,6 +12,10 @@ class Auctions(commands.Cog):
         self.bot = bot
         self.check_auction_expiry.start()
     
+    #=============================#
+    #   Auction Helper Functions  #
+    #=============================#
+
     def cog_unload(self):
         self.check_auction_expiry.cancel()
     
@@ -41,32 +46,6 @@ class Auctions(commands.Cog):
             }
         }
         return items.get(item_type)
-    
-    @tasks.loop(minutes=1)
-    async def check_auction_expiry(self):
-        try:
-            active_auctions = firebase_manager.get_active_auctions()
-            
-            for auction_id, auction_data in active_auctions.items():
-                end_time_str = auction_data.get('endTime')
-                if not end_time_str:
-                    continue
-                
-                try:
-                    end_time = datetime.fromisoformat(end_time_str)
-                    current_time = datetime.now()
-                    
-                    if current_time >= end_time:
-                        await self.complete_auction(auction_id, auction_data)
-                except Exception as e:
-                    print(f"Error checking auction {auction_id} expiry: {e}")
-        
-        except Exception as e:
-            print(f"Error in auction expiry check: {e}")
-    
-    @check_auction_expiry.before_loop
-    async def before_check_auction_expiry(self):
-        await self.bot.wait_until_ready()
     
     async def complete_auction(self, auction_id, auction_data):
         try:
@@ -138,13 +117,58 @@ class Auctions(commands.Cog):
         except Exception as e:
             print(f"Error completing auction {auction_id}: {e}")
     
+    def has_admin_role(self, member):
+        for role in member.roles:
+            if role.id in bot_config.ADMIN_ROLE_IDS:
+                return True
+        return False
+    
+    #=============================#
+    #     Auction Management      #
+    #=============================#
+
+    @tasks.loop(minutes=1)
+    async def check_auction_expiry(self):
+        try:
+            active_auctions = firebase_manager.get_active_auctions()
+            
+            for auction_id, auction_data in active_auctions.items():
+                end_time_str = auction_data.get('endTime')
+                if not end_time_str:
+                    continue
+                
+                try:
+                    end_time = datetime.fromisoformat(end_time_str)
+                    current_time = datetime.now()
+                    
+                    if current_time >= end_time:
+                        await self.complete_auction(auction_id, auction_data)
+                except Exception as e:
+                    print(f"Error checking auction {auction_id} expiry: {e}")
+        
+        except Exception as e:
+            print(f"Error in auction expiry check: {e}")
+    
+    @check_auction_expiry.before_loop
+    async def before_check_auction_expiry(self):
+        await self.bot.wait_until_ready()
+    
+    #=============================#
+    #     Auctioneer Commands     #
+    #=============================#
+
     @app_commands.command(name="startauction", description="Start an auction (Auctioneer only)")
     @app_commands.describe(
         item="Item to auction (special1, special2, customrole, largebooster)",
         duration="Duration in hours (1-72)",
         starting_bid="Starting bid amount (optional)"
     )
-    async def start_auction(self, interaction: discord.Interaction, item: str, duration: int, starting_bid: int = None):
+    async def start_auction(
+        self, interaction: discord.Interaction, 
+        item: Literal["special_role_1", "special_role_2", "custom_role_pass", "large_booster"], 
+        duration: int, starting_bid: int = None
+        ):
+
         if not self.has_auctioneer_role(interaction.user):
             await interaction.response.send_message("You don't have permission to start auctions!", ephemeral=True)
             return
@@ -207,14 +231,62 @@ class Auctions(commands.Cog):
             firebase_manager.set_auction_message_id(auction_id, message.id)
         
         await interaction.response.send_message(f"Auction started! ID: `{auction_id}`", ephemeral=True)
-    
+
+    @app_commands.command(name="cancelauction", description="Cancel an active auction (Auctioneer only)")
+    @app_commands.describe(auction_id="The auction ID to cancel")
+    async def cancel_auction(self, interaction: discord.Interaction, auction_id: str):
+        if not self.has_auctioneer_role(interaction.user):
+            await interaction.response.send_message("You don't have permission to cancel auctions!", ephemeral=True)
+            return
+        
+        auction = firebase_manager.get_auction(auction_id)
+        if not auction:
+            await interaction.response.send_message("Auction not found!", ephemeral=True)
+            return
+        
+        bidder_id = auction.get('highestBidder')
+        bid_amount = auction.get('highestBid', 0)
+        
+        if bidder_id and bid_amount > 0:
+            firebase_manager.add_xp(int(bidder_id), "Auction Cancelled", bid_amount)
+            
+            try:
+                bidder = await self.bot.fetch_user(int(bidder_id))
+                refund_embed = discord.Embed(
+                    title="Auction Cancelled",
+                    description=f"The auction you bid on has been cancelled. Your bid of **{bid_amount:,} XP** has been refunded.",
+                    color=discord.Color.orange()
+                )
+                await bidder.send(embed=refund_embed)
+            except:
+                pass
+        
+        firebase_manager.delete_auction(auction_id)
+        
+        item_info = self.get_auction_item_info(auction.get('itemType'))
+        
+        embed = discord.Embed(
+            title="Auction Cancelled",
+            description=f"The auction for **{item_info['name']}** has been cancelled by {interaction.user.mention}.",
+            color=discord.Color.red()
+        )
+        
+        auction_channel = self.bot.get_channel(bot_config.AUCTION_CHANNEL_ID)
+        if auction_channel:
+            await auction_channel.send(embed=embed)
+        
+        await interaction.response.send_message("Auction cancelled successfully!", ephemeral=True)
+
+    #=============================#
+    #       Auction Commands      #
+    #=============================#
     @app_commands.command(name="bid", description="Place a bid on an active auction")
-    @app_commands.describe(
-        auction_id="The auction ID",
-        amount="Your bid amount"
-    )
+    @app_commands.describe(auction_id="The auction ID", amount="Your bid amount")
     async def bid(self, interaction: discord.Interaction, auction_id: str, amount: int):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
+            return
+        
+        if self.has_admin_role(interaction.user):
             return
         
         auction = firebase_manager.get_auction(auction_id)
@@ -346,50 +418,5 @@ class Auctions(commands.Cog):
         
         await interaction.response.send_message(embed=embed)
     
-    @app_commands.command(name="cancelauction", description="Cancel an active auction (Auctioneer only)")
-    @app_commands.describe(auction_id="The auction ID to cancel")
-    async def cancel_auction(self, interaction: discord.Interaction, auction_id: str):
-        if not self.has_auctioneer_role(interaction.user):
-            await interaction.response.send_message("You don't have permission to cancel auctions!", ephemeral=True)
-            return
-        
-        auction = firebase_manager.get_auction(auction_id)
-        if not auction:
-            await interaction.response.send_message("Auction not found!", ephemeral=True)
-            return
-        
-        bidder_id = auction.get('highestBidder')
-        bid_amount = auction.get('highestBid', 0)
-        
-        if bidder_id and bid_amount > 0:
-            firebase_manager.add_xp(int(bidder_id), "Auction Cancelled", bid_amount)
-            
-            try:
-                bidder = await self.bot.fetch_user(int(bidder_id))
-                refund_embed = discord.Embed(
-                    title="Auction Cancelled",
-                    description=f"The auction you bid on has been cancelled. Your bid of **{bid_amount:,} XP** has been refunded.",
-                    color=discord.Color.orange()
-                )
-                await bidder.send(embed=refund_embed)
-            except:
-                pass
-        
-        firebase_manager.delete_auction(auction_id)
-        
-        item_info = self.get_auction_item_info(auction.get('itemType'))
-        
-        embed = discord.Embed(
-            title="Auction Cancelled",
-            description=f"The auction for **{item_info['name']}** has been cancelled by {interaction.user.mention}.",
-            color=discord.Color.red()
-        )
-        
-        auction_channel = self.bot.get_channel(bot_config.AUCTION_CHANNEL_ID)
-        if auction_channel:
-            await auction_channel.send(embed=embed)
-        
-        await interaction.response.send_message("Auction cancelled successfully!", ephemeral=True)
-
 async def setup(bot):
     await bot.add_cog(Auctions(bot))

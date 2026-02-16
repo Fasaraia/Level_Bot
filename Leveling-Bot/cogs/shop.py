@@ -4,6 +4,7 @@ from discord import app_commands
 from utils import firebase_manager
 from config import config as bot_config
 from datetime import datetime, timedelta
+from typing import Literal
 
 class Shop(commands.Cog):
     def __init__(self, bot):
@@ -35,25 +36,16 @@ class Shop(commands.Cog):
         item_input_clean = item_input.lower().strip()
         
         booster_map = {
-            'tiny_booster': 'tiny_booster',
-            'tiny': 'tiny_booster',
-            'booster1': 'tiny_booster',
-            'small_booster': 'small_booster',
-            'small': 'small_booster',
-            'booster2': 'small_booster',
-            'medium_booster': 'medium_booster',
-            'medium': 'medium_booster',
-            'booster3': 'medium_booster',
-            'large_booster': 'large_booster',
-            'large': 'large_booster',
-            'booster4': 'large_booster',
+            'tiny booster': 'tiny_booster',
+            'small booster': 'small_booster',
+            'medium booster': 'medium_booster',
+            'large booster': 'large_booster'
         }
         
         if item_input_clean in booster_map:
             return ('booster', booster_map[item_input_clean])
         
-        crp_aliases = ['custom_role_pass', 'customrolepass', 'customrole', 'custompass', 'rolepass', 'custom roll pass']
-        if item_input_clean in crp_aliases:
+        if item_input_clean == 'custom roll pass':
             return ('custom_role_pass', 'custom_role_pass')
         
         return (None, None)
@@ -329,7 +321,7 @@ class Shop(commands.Cog):
     
     @app_commands.command(name="buy", description="Buy an item from the shop")
     @app_commands.describe(item="The item to buy (e.g., Red, Blue, tiny, small, medium)")
-    async def buy(self, interaction: discord.Interaction, item: str):
+    async def buy(self, interaction: discord.Interaction, item: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black", "Tiny Booster", "Small Booster", "Medium Booster"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
@@ -442,7 +434,7 @@ class Shop(commands.Cog):
 
     @app_commands.command(name="use", description="Use an item (booster or custom role pass)")
     @app_commands.describe(item="The item to use (e.g., tiny, small, medium, large, customrole)")
-    async def use_item(self, interaction: discord.Interaction, item: str):
+    async def use_item(self, interaction: discord.Interaction, item: Literal["Tiny Booster", "Small Booster", "Medium Booster", "Large Booster", "Custom Role Pass"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
 
@@ -459,7 +451,7 @@ class Shop(commands.Cog):
 
     @app_commands.command(name="equip", description="Equip an owned role")
     @app_commands.describe(role="The role to equip")
-    async def equip(self, interaction: discord.Interaction, role: str):
+    async def equip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
         
@@ -507,8 +499,8 @@ class Shop(commands.Cog):
             await interaction.response.send_message("Failed to equip role. Please message <@278365147167326208>", ephemeral=True)
 
     @app_commands.command(name="unequip", description="Unequip an owned role")
-    @app_commands.describe(role="The role to unequip (e.g., Red, Blue, Custom1, Special1)")
-    async def unequip(self, interaction: discord.Interaction, role: str):
+    @app_commands.describe(role="The role to unequip (e.g., Red, Blue...)")
+    async def unequip(self, interaction: discord.Interaction, role: Literal["Red", "Orange", "Teal", "Blue", "Purple", "Black"]):
         if interaction.channel.id != bot_config.COMMANDS_CHANNEL_ID:
             return
             

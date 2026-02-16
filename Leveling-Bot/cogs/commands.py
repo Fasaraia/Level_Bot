@@ -6,6 +6,7 @@ from config import config as bot_config
 from PIL import Image, ImageDraw, ImageFont
 import io
 import aiohttp
+from typing import Literal
 
 class Commands(commands.Cog):
     def __init__(self, bot):
@@ -101,7 +102,7 @@ class Commands(commands.Cog):
         draw.text((bar_x + bar_width // 2, bar_y + bar_height // 2), xp_text, 
                  fill=(255, 255, 255, 255), font=label_font, anchor="mm")
         
-        draw.text((200, 230), f"Current XP: {user_xp:,}", fill=(153, 170, 181, 255), font=label_font)
+        draw.text((200, 230), f"Current XP: {user_xp:,.2f}", fill=(153, 170, 181, 255), font=label_font)
         draw.text((400, 230), f"Weekly Messages: {user_data['messageCount']:,}", fill=(153, 170, 181, 255), font=label_font)
         
         return card
