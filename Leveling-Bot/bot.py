@@ -27,6 +27,7 @@ class LevelingBot(commands.Bot):
         await self.load_extension('cogs.commands')
         await self.load_extension('cogs.custom_role')
         await self.load_extension('cogs.auction')
+        await self.load_extension('cogs.help')
         print("Syncing commands...")
         await self.tree.sync()
         print("Commands synced!")
