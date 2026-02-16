@@ -104,6 +104,8 @@ class CustomRoles(commands.Cog):
                 
                 await existing_role.edit(**edit_kwargs)
                 
+                await existing_role.edit(position=10)
+
                 if existing_role not in ctx.author.roles:
                     await ctx.author.add_roles(existing_role)
                 

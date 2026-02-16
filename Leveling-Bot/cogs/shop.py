@@ -23,11 +23,8 @@ class Shop(commands.Cog):
             'purple': 'Purple',
             'black': 'Black',
             'customrole1': 'Custom Role 1',
-            'custom1': 'Custom Role 1',
-            'cr1': 'Custom Role 1',
             'customrole2': 'Custom Role 2',
-            'custom2': 'Custom Role 2',
-            'cr2': 'Custom Role 2',
+
         }
         return role_map.get(role_input.lower().strip().replace(' ', ''), None)
     
