@@ -46,13 +46,13 @@ class Gambling(commands.Cog):
             opposite_face = "tails" if face == "heads" else "heads"
             roll = random.random()
             if roll < 0.49995:
-                winnings = int(amount * 5)
+                winnings = int(amount * 0.5)
                 firebase_manager.add_coins(interaction.user.id, str(interaction.user), winnings)
                 embed = discord.Embed(title="You won the flip!", description=f"The coin landed on **{face}**!", color=0x57F287)
                 embed.add_field(name="Bet", value=f"{amount:,}", inline=True)
                 embed.add_field(name="Result", value=f"+{winnings:,} coins", inline=True)
                 embed.add_field(name="Balance", value=f"{user_data['coins'] + winnings:,}", inline=True)
-            elif roll <= 0.500 and roll >= 0.49995:
+            elif roll >= 0.49995 and roll <= 0.500 :
                 embed = discord.Embed(title="JACKPOT!", description="I felt like it so yeah (So like dm <@278365147167326208> for smth idk)", color=0xFAA81A)
             else:
                 firebase_manager.add_coins(interaction.user.id, str(interaction.user), -amount)
