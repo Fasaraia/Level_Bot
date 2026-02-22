@@ -37,10 +37,6 @@ class Gambling(commands.Cog):
                     last_gamble_dt = last_gamble_dt.replace(tzinfo=timezone.utc)
                 
                 elapsed_time = (now - last_gamble_dt).total_seconds()
-                print(f"lastGambleTime raw: {last_gamble_time}")
-                print(f"parsed: {last_gamble_dt}")
-                print(f"elapsed seconds: {elapsed_time}")
-                print(f"cooldown seconds: {bot_config.GAMBLE_COOLDOWN}")
 
                 if elapsed_time < bot_config.GAMBLE_COOLDOWN:
                     unlock_time = int(now.timestamp()) + bot_config.GAMBLE_COOLDOWN - int(elapsed_time)
