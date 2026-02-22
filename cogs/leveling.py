@@ -35,7 +35,7 @@ class Leveling(commands.Cog):
                         user = await self.bot.fetch_user(int(user_id))
                         if user:
                             embed = discord.Embed(
-                                title="⚡ Booster Expired",
+                                title="Booster Expired",
                                 description=f"Your **{booster_name.replace('_', ' ').title()}** has expired!",
                                 color=discord.Color.orange()
                             )
@@ -78,7 +78,7 @@ class Leveling(commands.Cog):
                             if not member_notified:
                                 try:
                                     embed = discord.Embed(
-                                        title="⚠️ Custom Role Expired",
+                                        title="Custom Role Expired",
                                         description=f"Your custom role **{custom_role.name}** has been removed because your Custom Role Pass expired (30 days).",
                                         color=discord.Color.orange()
                                     )

@@ -1,6 +1,6 @@
 import firebase_admin
 from firebase_admin import credentials, db
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 import os
 
@@ -60,6 +60,7 @@ class FirebaseManager:
         return {
             'userId': str(user_id),
             'lastMessageTime': None,
+            'lastGambleTime': None,
             'level': 0,
             'messageCount': 0,
             'coins': 0,
@@ -197,10 +198,8 @@ class FirebaseManager:
         
         user_ref = self.db_ref.child('users').child(str(user_id))
         user_ref.update({
-            'coins': new_current_coins,
             'totalXP': new_total_xp,
             'level': new_level,
-            'messageCount': user_data['messageCount'],
             'lastUsername': username,
             'lastMessageTime': datetime.now().isoformat()
         })
@@ -212,15 +211,28 @@ class FirebaseManager:
             'old_level': old_level,
             'new_level': new_level,
             'xp_gain': xp_amount,
-            'current_xp': new_current_coins,
             'total_xp': new_total_xp
         }
+    
+    def add_coins(self, user_id, username, amount):
+        user_data = self.get_user_data(user_id)
+        new_coins = round(user_data['coins'] + amount, 2)
+
+        user_ref = self.db_ref.child('users').child(str(user_id))
+        user_ref.update({
+            'coins': new_coins,
+            'lastUsername': username,
+            'lastGambleTime': datetime.now(timezone.utc).isoformat()
+        })
+        
+        return new_coins
     
     def reset_user(self, user_id):
         user_ref = self.db_ref.child('users').child(str(user_id))
         user_ref.update({
             'userId': str(user_id),
             'lastMessageTime': None,
+            'lastGambleTime': None,
             'level': 0,
             'messageCount': 0,
             'coins': 0,
