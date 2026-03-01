@@ -12,7 +12,6 @@ ENV/
 .env
 
 # Firebase credentials
-config/
 serviceAccountKey.json
 
 # IDE
