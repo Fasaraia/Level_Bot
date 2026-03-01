@@ -1,20 +1,22 @@
 import firebase_admin
 from firebase_admin import credentials, db
+import json
 from datetime import datetime, timedelta, timezone
 import math
 import os
 
 
 class FirebaseManager:
-    def __init__(self, cred_path='config/serviceAccountKey.json'):
-        if not os.path.exists(cred_path):
-            raise FileNotFoundError(f"Firebase credentials not found at: {cred_path}")
+    def __init__(self):
+        cred_json = os.getenv('FIREBASE_CREDENTIALS')
+        if not cred_json:
+            raise ValueError("FIREBASE_CREDENTIALS not found in environment variables")
         
         database_url = os.getenv('FIREBASE_DATABASE_URL')
         if not database_url:
-            raise ValueError("FIREBASE_DATABASE_URL not found in .env file")
+            raise ValueError("FIREBASE_DATABASE_URL not found in environment variables")
         
-        cred = credentials.Certificate(cred_path)
+        cred = credentials.Certificate(json.loads(cred_json))
         firebase_admin.initialize_app(cred, {'databaseURL': database_url})
         self.db_ref = db.reference()
     
